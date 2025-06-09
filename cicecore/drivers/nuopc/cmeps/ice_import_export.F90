@@ -47,7 +47,7 @@ module ice_import_export
   use shr_mpi_mod        , only : shr_mpi_min, shr_mpi_max
 #endif
 
-  use ice_state, only: uvel, vvel !Joseph C. Smith for export from CICE
+  use ice_state, only: uvel, vvel 
   implicit none
   public
 
@@ -1463,12 +1463,6 @@ contains
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
        end do
     end if
-
-
-
-
-    !Joseph C. Smith
-
 
     ! Snow volume
     call state_setexport(exportState, 'Si_uvel' , input=uvel, lmask=tmask, ifrac=ailohi, rc=rc)
