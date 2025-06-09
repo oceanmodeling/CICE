@@ -26,7 +26,9 @@
       use icepack_intfc, only: icepack_max_iso, icepack_max_aero
       use icepack_intfc, only: icepack_query_parameters
       use icepack_intfc, only: icepack_query_tracer_flags, icepack_query_tracer_sizes
-
+      use ice_forcing, only: get_forcing_bry, ocn_freezing_temperature
+      use ice_domain, only:sea_ice_time_bry  
+      use ice_communicate, only: MPI_COMM_ICE, my_task, master_task
       implicit none
       private
       public :: CICE_Run, ice_step
@@ -53,6 +55,8 @@
       use ice_flux, only: init_flux_atm, init_flux_ocn
       use ice_timers, only: ice_timer_start, ice_timer_stop, &
           timer_couple, timer_step
+      use ice_restoring, only: restore_ice, ice_HaloRestore
+
       logical (kind=log_kind) :: &
           tr_iso, tr_aero, tr_zaero, skl_bgc, z_tracers, wave_spec, tr_fsd
       character(len=*), parameter :: subname = '(CICE_Run)'
@@ -78,11 +82,17 @@
       ! timestep loop
       !--------------------------------------------------------------------
 
+
       call ice_timer_start(timer_couple)  ! atm/ocn coupling
+
 
       call advance_timestep()  ! advance timestep and update calendar data
 
       if (z_tracers) call get_atm_bgc                   ! biogeochemistry
+
+
+      if (sea_ice_time_bry) call get_forcing_bry
+
 
       call init_flux_atm  ! Initialize atmosphere fluxes sent to coupler
       call init_flux_ocn  ! initialize ocean fluxes sent to coupler
@@ -120,6 +130,7 @@
       use ice_dyn_shared, only: kdyn, kridge
       use ice_flux, only: scale_factor, init_history_therm, &
           daidtt, daidtd, dvidtt, dvidtd, dvsdtt, dvsdtd, dagedtt, dagedtd
+      use ice_flux, only: init_flux_atm, init_flux_ocn
       use ice_history, only: accum_hist
       use ice_history_bgc, only: init_history_bgc
       use ice_restart, only: final_restart
@@ -178,9 +189,9 @@
       !-----------------------------------------------------------------
       ! restoring on grid boundaries
       !-----------------------------------------------------------------
-
-         if (restore_ice) call ice_HaloRestore
-
+      !if (my_task == master_task) then
+      !   if (restore_ice) call ice_HaloRestore
+      !endif
       !-----------------------------------------------------------------
       ! initialize diagnostics and save initial state values
       !-----------------------------------------------------------------
@@ -253,6 +264,12 @@
 
          call ice_timer_stop(timer_thermo) ! thermodynamics
          call ice_timer_stop(timer_column) ! column physics
+      !----------------------------------------------------------------- 
+      ! restoring on grid boundaries befor dynamics 
+      !----------------------------------------------------------------- 
+         if (restore_ice) call ice_HaloRestore
+
+
 
       !-----------------------------------------------------------------
       ! dynamics, transport, ridging
@@ -395,7 +412,8 @@
                   call ufs_logfhour(trim(logmsg),timesecs/c3600)
                end if
             end do
-         end if
+         end ifi
+
       end subroutine ice_step
 
 !=======================================================================
@@ -481,9 +499,9 @@
 
          call ice_timer_start(timer_couple,iblk)   ! atm/ocn coupling
 
-         if (oceanmixed_ice) &
-         call ocean_mixed_layer (dt,iblk) ! ocean surface fluxes and sst
-
+         !if (oceanmixed_ice) &                    Joseph Smith: This has been move to the beginning of the run sequence
+         !       call ocean_mixed_layer (dt,iblk) ! ocean surface fluxes and sst
+             
       !-----------------------------------------------------------------
       ! Aggregate albedos
       !-----------------------------------------------------------------
