@@ -9,9 +9,20 @@
       use ice_kinds_mod
       use ice_blocks, only: nx_block, ny_block
       use ice_constants, only: c0, c1, c2, p2
-      use ice_domain_size, only: ncat, max_blocks
-      use ice_forcing, only: trestore, trest
-      use ice_state, only: aicen, vicen, vsnon, trcrn
+      use ice_domain_size, only: ncat, max_blocks, n_aero
+      use ice_forcing, only: trestore, trest, &
+          aicen_bry, vicen_bry, vsnon_bry,    &
+          Tsfc_bry, Tinz_bry, Sinz_bry, alvln_bry,vlvln_bry,&
+          apondn_bry, hpondn_bry, ipondn_bry,iage_bry, Tsnz_bry, &
+          uvel_bry, vvel_bry !pedrocice 
+      use ice_state, only: aicen, vicen, vsnon, trcrn, bound_state, &
+          aice_init, aice0, aice, vice, vsno, trcr, trcr_depend, &
+          uvel, vvel,& 
+          divu,shear,strength! !pedrocice  
+          
+          
+      use icepack_tracers, only: ntrcr,tr_pond_lvl,nbtrcr  
+      
       use ice_timers, only: ice_timer_start, ice_timer_stop, timer_bound
       use ice_exit, only: abort_ice
       use ice_fileunits, only: nu_diag
@@ -20,18 +31,23 @@
       use icepack_intfc, only: icepack_query_parameters, &
           icepack_query_tracer_sizes, icepack_query_tracer_flags, &
           icepack_query_tracer_indices
-
+      
+      use ice_domain, only:sea_ice_time_bry
+      
       implicit none
       private
       public :: ice_HaloRestore_init, ice_HaloRestore
 
       logical (kind=log_kind), public :: &
          restore_ice                 ! restore ice state if true
-
+      
+      real (kind=dbl_kind), dimension (:,:,:), allocatable :: & !pedrocice
+         uvel_rest , & ! ice velocity
+         vvel_rest 
       !-----------------------------------------------------------------
       ! state of the ice for each category
       !-----------------------------------------------------------------
-
+    
       real (kind=dbl_kind), dimension (:,:,:,:), allocatable, public :: &
          aicen_rest , & ! concentration of ice
          vicen_rest , & ! volume per unit area of ice          (m)
@@ -88,7 +104,7 @@
 
    if ((ew_boundary_type == 'open' .or. &
         ns_boundary_type == 'open') .and. .not.(restart_ext)) then
-      if (my_task == master_task) write (nu_diag,*) ' ERROR: restart_ext=F and open boundaries'
+      if (my_task == master_task) write (nu_diag,*) 'ERROR: restart_ext=F and open boundaries'
       call abort_ice(error_message=subname//'open boundary and restart_ext=F', &
          file=__FILE__, line=__LINE__)
    endif
@@ -96,12 +112,20 @@
    allocate (aicen_rest(nx_block,ny_block,ncat,max_blocks), &
              vicen_rest(nx_block,ny_block,ncat,max_blocks), &
              vsnon_rest(nx_block,ny_block,ncat,max_blocks), &
-             trcrn_rest(nx_block,ny_block,ntrcr,ncat,max_blocks))
+             trcrn_rest(nx_block,ny_block,ntrcr,ncat,max_blocks),&
+             uvel_rest(nx_block,ny_block,max_blocks),&  !pedrocice
+             vvel_rest(nx_block,ny_block,max_blocks))
 
-   aicen_rest(:,:,:,:) = c0
-   vicen_rest(:,:,:,:) = c0
-   vsnon_rest(:,:,:,:) = c0
-   trcrn_rest(:,:,:,:,:) = c0
+!    aicen_rest(:,:,:,:) = c0
+!    vicen_rest(:,:,:,:) = c0
+!    vsnon_rest(:,:,:,:) = c0
+!    trcrn_rest(:,:,:,:,:) = c0
+   aicen_rest(:,:,:,:) = c0!aicen(:,:,:,:)
+   vicen_rest(:,:,:,:) = c0!vicen(:,:,:,:)
+   vsnon_rest(:,:,:,:) = c0!vsnon(:,:,:,:)
+   trcrn_rest(:,:,:,:,:) = c0!trcrn(:,:,:,:,:)
+   uvel_rest(:,:,:)  = c0
+   vvel_rest(:,:,:)  = c0
 
 !-----------------------------------------------------------------------
 ! initialize
@@ -145,11 +169,12 @@
    ! restore to initial ice state
 
 ! the easy way
-!   aicen_rest(:,:,:,:) = aicen(:,:,:,:)
-!   vicen_rest(:,:,:,:) = vicen(:,:,:,:)
-!   vsnon_rest(:,:,:,:) = vsnon(:,:,:,:)
-!   trcrn_rest(:,:,:,:,:) = trcrn(:,:,:,:,:)
-
+!   aicen_rest(:,:,:,:) = c0!aicen(:,:,:,:)
+!   vicen_rest(:,:,:,:) = c0!vicen(:,:,:,:)
+!   vsnon_rest(:,:,:,:) = c0!vsnon(:,:,:,:)
+!   trcrn_rest(:,:,:,:,:) = c0!trcrn(:,:,:,:,:)
+!   uvel_rest(:,:,:,:)  = c0
+!   vvel_rest(:,:,:,:)  = c0
 ! the more precise way
    !$OMP PARALLEL DO PRIVATE(iblk,ilo,ihi,jlo,jhi,this_block, &
    !$OMP                     i,j,n,nt,ibc,npad)
@@ -304,6 +329,9 @@
 
       use ice_arrays_column, only: hin_max
       use ice_blocks, only: nblocks_x, nblocks_y
+      use icepack_intfc, only: icepack_init_trcr
+      use icepack_parameters, only: c0, c1, c2, p2, p5, rhoi, rhos, Lfresh, &
+           cp_ice, cp_ocn, Tsmelt, Tffresh
       use ice_domain_size, only: nilyr, nslyr, ncat
 
       integer (kind=int_kind), intent(in) :: &
@@ -353,6 +381,10 @@
          nt_qsno     , & !
          icells          ! number of cells initialized with ice
 
+      integer (kind=int_kind), dimension(nx_block*ny_block) :: &
+         indxi, indxj    ! compressed indices for cells with restoring
+   
+         
       logical (kind=log_kind) :: &
          tr_brine
 
@@ -373,7 +405,13 @@
          qsn             ! snow enthalpy (J/m3)
 
       character(len=*), parameter :: subname = '(set_restore_var)'
-
+      
+      
+      
+      
+     
+      
+      
       call icepack_query_tracer_flags(tr_brine_out=tr_brine)
       call icepack_query_tracer_indices(nt_Tsfc_out=nt_Tsfc, nt_fbri_out=nt_fbri, &
            nt_qice_out=nt_qice, nt_sice_out=nt_sice, nt_qsno_out=nt_qsno)
@@ -557,7 +595,41 @@
       use ice_calendar, only: dt
       use ice_domain, only: ew_boundary_type, ns_boundary_type, &
           nblocks, blocks_ice
+          
+      use ice_domain_size, only: nblyr,nilyr, nslyr, ncat
+      use ice_communicate, only: my_task, master_task
+      use ice_fileunits, only: nu_diag
+      
+       use icepack_parameters, only: c0, c1, c2, p2, p5, rhoi, rhos, Lfresh, &
+           cp_ice, cp_ocn, Tsmelt, Tffresh,hs_min, p01
+      
+      use icepack_tracers, only: nt_Tsfc, nt_qice, nt_qsno, nt_sice, &  
+          nt_fbri, tr_brine, nt_vlvl, nt_alvl, nt_iage, &
+          nt_apnd, nt_hpnd, nt_ipnd, tr_aero, tr_pond_topo, nbtrcr
+          
+      
+          
+       
 
+      use icepack_parameters, only: ktherm
+      use ice_flux, only: Tmltz,Tf
+     
+      use icepack_mushy_physics, only: icepack_enthalpy_snow, icepack_enthalpy_mush
+      use ice_dyn_shared, only: a_min
+      
+      
+      use ice_flux, only: fpond, fresh, fhocn, fsalt,Tf
+      use ice_flux_bgc, only: flux_bio, faero_ocn,fiso_ocn
+      
+      use icepack_itd, only: cleanup_itd
+      use ice_state, only: trcr_base, nt_strata, n_trcr_strata 
+          
+          
+!       use ice_therm_shared, only: heat_capacity
+      use ice_arrays_column, only: hin_max, first_ice
+      
+      use ice_exit, only: abort_ice
+     
 !-----------------------------------------------------------------------
 !
 !  local variables
@@ -565,7 +637,7 @@
 !-----------------------------------------------------------------------
 
    integer (int_kind) :: &
-     i,j,iblk,nt,n,      &! dummy loop indices
+     i,j,k,iblk,nt,n,      &! dummy loop indices
      ilo,ihi,jlo,jhi,    &! beginning and end of physical domain
      ibc,                &! ghost cell column or row
      ntrcr,              &!
@@ -576,9 +648,23 @@
 
    real (dbl_kind) :: &
      secday,             &!
-     ctime                ! dt/trest
-
+     ctime,Ti,slope,cslope,trest_ice               ! dt/trest
+   
+   logical(kind=log_kind) :: &
+         lsnow, &          ! snow presence: T: has snow, F: no snow
+         lice              ! ice presence: T: has ice, F: no ice
+        
+   
    character(len=*), parameter :: subname = '(ice_HaloRestore)'
+   
+   
+   logical (kind=log_kind) :: &
+         l_stop          ! if true, abort model
+
+   integer (kind=int_kind) :: &
+      istop, jstop    ! indices of grid cell where model aborts
+
+   l_stop = .false.
 
    call ice_timer_start(timer_bound)
    call icepack_query_parameters(secday_out=secday)
@@ -594,13 +680,20 @@
 !-----------------------------------------------------------------------
 
       ! for now, use same restoring constant as for SST
-      if (trestore == 0) then
-         trest = dt          ! use data instantaneously
-      else
-         trest = real(trestore,kind=dbl_kind) * secday ! seconds
-      endif
-      ctime = dt/trest
-
+!       if (trestore == 0) then
+!          trest = dt          ! use data instantaneously
+!       else
+          trest_ice = real(.5,kind=dbl_kind) * 3600!secday ! seconds
+!       endif
+!       trest = real(5,kind=dbl_kind) * secday
+	
+        ctime = dt/trest_ice
+        
+        
+!         print *, 'trest_ice,ctime: ',trest_ice,ctime
+!       if (my_task == master_task ) then
+!            write (nu_diag,*) 'Restoring ice'
+!       end if
 !-----------------------------------------------------------------------
 !
 !  Restore values in cells surrounding the grid
@@ -610,7 +703,7 @@
    !$OMP PARALLEL DO PRIVATE(iblk,ilo,ihi,jlo,jhi,this_block, &
    !$OMP                     i,j,n,nt,ibc,npad)
    do iblk = 1, nblocks
-      this_block = get_block(blocks_ice(iblk),iblk)
+      this_block = get_block(blocks_ice(iblk),iblk)         
          ilo = this_block%ilo
          ihi = this_block%ihi
          jlo = this_block%jlo
@@ -707,28 +800,229 @@
                if (npad /= 0) ibc = ibc - 1
             enddo
 
-            do n = 1, ncat
-            do j = jhi, ibc
+            do j = jhi,ibc  
+             cslope  = real(1) !- real(ibc-j)/real(3)
+            
+	    !write(nu_diag,*) "#####################################################"
+	    !write(nu_diag,*) ,'jhi,j,jhi-j,cslope = ',jhi,j,jhi+1-j,cslope	    
+	    
             do i = 1, nx_block
-               aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
-                  + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
-               vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
-                  + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
-               vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
-                  + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
-               do nt = 1, ntrcr
-                  trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
-                     + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
+            do n = 1, ncat
+               if (sea_ice_time_bry) then 
+		
+! 		  write (nu_diag,*) 'aice_bry  : ', aicen_bry(i,ibc,n,iblk)
+! 		  write (nu_diag,*) 'vice_bry  : ', vicen_bry(i,ibc,n,iblk)
+! 		  write (nu_diag,*) 'hice_bry  : ', (vicen_bry(i,j,n,iblk)/aicen_bry(i,j,n,iblk))
+		  
+	    
+		    aicen_rest(i,j,n,iblk) 	    = aicen_bry(i,ibc,n,iblk)
+		    vicen_rest(i,j,n,iblk) 	    = vicen_bry(i,ibc,n,iblk)
+		    vsnon_rest(i,j,n,iblk)          = vsnon_bry(i,ibc,n,iblk)
+		    trcrn_rest(i,j,nt_Tsfc,n,iblk)  = Tsfc_bry(i,ibc,n,iblk)   
+		    trcrn_rest(i,j,nt_alvl,n,iblk)  = alvln_bry(i,ibc,n,iblk)
+		    trcrn_rest(i,j,nt_vlvl,n,iblk)  = vlvln_bry(i,ibc,n,iblk) 
+		    trcrn_rest(i,j,nt_iage,n,iblk)  = iage_bry(i,ibc,n,iblk) 
+		    if (tr_pond_lvl) then
+		      trcrn_rest(i,j,nt_apnd,n,iblk) = apondn_bry(i,ibc,n,iblk) 
+		      trcrn_rest(i,j,nt_hpnd,n,iblk) = hpondn_bry(i,ibc,n,iblk)
+		      trcrn_rest(i,j,nt_ipnd,n,iblk) = ipondn_bry(i,ibc,n,iblk)  
+		    endif
+                  endif
+                  
+!                   if (aicen_bry(i,ibc,n,iblk) > c0 ) then
+! 			write(nu_diag,*) "#####################################################"
+! 			write(nu_diag,*) "aicen_rest(i,j,n,iblk) = ",aicen_rest(i,j,n,iblk)
+! 			write(nu_diag,*) "aicen_bry(i,j,n,iblk) = ",aicen_bry(i,j,n,iblk)
+! 			write(nu_diag,*) "vicen_rest(i,j,n,iblk) = ",vicen_rest(i,j,n,iblk)
+! 			write(nu_diag,*) "aicen_bry(i,j,n,iblk) = ",vicen_bry(i,j,n,iblk)
+! 			write(nu_diag,*) "vsnon_rest(i,j,n,iblk) = ",vsnon_rest(i,j,n,iblk)
+! 		        write(nu_diag,*) "vicen_rest(i,j,n,iblk)/aicen_rest(i,j,n,iblk) = ",vicen_rest(i,j,n,iblk)/aicen_rest(i,j,n,iblk)
+ 
+!                   endif
+                  
+                  do k = 1,nilyr
+		     trcrn_rest(i,j,nt_sice+k-1,n,iblk) = 19.539*((real(k)/real(nilyr))**2) - 19.93*(real(k)/real(nilyr)) + 8.913
+!                    trcrn_rest(i,j,nt_sice+k-1,n,iblk) = Sinz_bry(i,ibc,k,n,iblk)                 
+                     if (ktherm == 2) then
+                        trcrn_rest(i,j,nt_qice+k-1,n,iblk) = icepack_enthalpy_mush(Tinz_bry(i,ibc,k,n,iblk),Sinz_bry(i,ibc,k,n,iblk))
+                     else             
+			trcrn_rest(i,j,nt_qice+k-1,n,iblk) = icepack_enthalpy_mush(c0-p01,c0)
+		     endif
+                  enddo  
+		  do k = 1,nslyr  
+                     trcrn_rest(i,j,nt_qsno+k-1,n,iblk) = -rhos*(Lfresh - cp_ice * min(c0,trcrn_rest(i,j,nt_Tsfc,n,iblk))) 
+                  enddo
+               
+                  
+               !if ((vicen_bry(i,ibc,n,iblk)/aicen_bry(i,ibc,n,iblk)) > real(.1)) then
+               
+!                if (SUM(aicen(i,ibc,n,iblk),3) > 1) then
+!                   write(nu_diag,*) ' aicen exceeds 1: aicen= ', aicen(i,ibc,n,iblk),3)
+!                endif 
+
+! 	       aicen(i,j,n,iblk) = aicen_rest(i,j,n,iblk)  
+!                vicen(i,j,n,iblk) = vicen_rest(i,j,n,iblk) 
+!                vsnon(i,j,n,iblk) = vsnon_rest(i,j,n,iblk)  
+! 	      if ((c0 < aicen(i,j,n,iblk)) .or. (c0 < aicen_rest(i,j,n,iblk))) then
+! 	      write(nu_diag,*) "############################################################################"
+! 	      write(nu_diag,*) "i,j,n,iblk = ", i, j, n, iblk 
+! 	      write(nu_diag,*) "Reseting ice values, aicen(i,jhi,n,iblk) , aicen_rest(i,j,n,iblk) = " , aicen(i,jhi,n,iblk), aicen_rest(i,j,n,iblk)
+!               write(nu_diag,*) "cslope = ", cslope
+!               endif
+                !+ (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime*cslope
+! 	      if ((c0 < aicen(i,j,n,iblk))) then
+! 		write(nu_diag,*) "Value post reset, aicen(i,j,n,iblk) = " , aicen(i,j,n,iblk)
+!               endif
+               
+               
+! 		
+               if    (vvel(i,jhi,iblk) >=0) then 
+               
+		aicen(i,j,n,iblk)  = aicen(i,jhi,n,iblk)  + (c0-aicen(i,jhi,n,iblk))*ctime
+                vicen(i,j,n,iblk)  = vicen(i,jhi,n,iblk)  + (c0-vicen(i,jhi,n,iblk))*ctime
+                vsnon(i,j,n,iblk)  = vsnon(i,jhi,n,iblk)  + (c0-vsnon(i,jhi,n,iblk))*ctime
+                
+		uvel(i,j,iblk)     =  uvel(i,j-1,iblk)                
+	        vvel(i,j,iblk)     =  vvel(i,j-1,iblk) 
+	        
+		divu(i,j,iblk)     = c0!real(0.1)
+		shear(i,j,iblk)    = c0!real(0.1)
+		strength(i,j,iblk) = c0!real(0.1)
+              else
+              
+		aicen(i,j,n,iblk)  = aicen(i,jhi,n,iblk)  + (aicen_rest(i,j,n,iblk)-aicen(i,jhi,n,iblk))*ctime
+                vicen(i,j,n,iblk)  = vicen(i,jhi,n,iblk)  + (vicen_rest(i,j,n,iblk)-vicen(i,jhi,n,iblk))*ctime
+                vsnon(i,j,n,iblk)  = vsnon(i,jhi,n,iblk)  + (vsnon_rest(i,j,n,iblk)-vsnon(i,jhi,n,iblk))*ctime
+                
+		uvel(i,j,iblk)     = uvel_rest(i,jhi,iblk)                
+	        vvel(i,j,iblk)     = vvel_rest(i,jhi,iblk) 
+	        
+! 	        divu(i,j,iblk)     = c0
+! 		shear(i,j,iblk)    = c0
+! 		strength(i,j,iblk) = c0
+		
+		divu(i,j,iblk)     = divu(i,j-1,iblk)
+		shear(i,j,iblk)    = shear(i,j-1,iblk)
+		strength(i,j,iblk) = strength(i,j-1,iblk)
+              endif
+              
+             ! if ((vicen(i,j,n,iblk)/aicen(i,j,n,iblk) < real(1e-2)) .or. (aicen(i,j,n,iblk) < real(1e-2))) then
+		
+            !   aicen(i,j,n,iblk)  = c0
+	!	vicen(i,j,n,iblk)  = c0  
+        !       vsnon(i,j,n,iblk)  = c0
+        !      endif
+              
+              
+              do nt = 1, ntrcr-nbtrcr
+                  if  ((sea_ice_time_bry).and.((nt == nt_qice).or. &
+                      (nt == nt_sice))) then
+                     do k = 1,nilyr
+                    trcrn(i,j,nt+k-1,n,iblk) = trcrn_rest(i,j,nt+k-1,n,iblk)!+(trcrn_rest(i,j,nt+k-1,n,iblk)- trcrn(i,j,nt+k-1,n,iblk))*ctime*cslope
+!                     trcrn(i,j,nt+k-1,n,iblk) = trcrn(i,jhi,nt+k-1,n,iblk) +(trcrn_rest(i,j,nt+k-1,n,iblk)- trcrn(i,jhi,nt+k-1,n,iblk))*ctime
+                     enddo
+                  else if ((sea_ice_time_bry).and.(nt == nt_qsno)) then
+                     do k = 1,nslyr
+		      trcrn(i,j,nt+k-1,n,iblk) = trcrn_rest(i,j,nt+k-1,n,iblk) !+(trcrn_rest(i,j,nt+k-1,n,iblk)- trcrn(i,j,nt+k-1,n,iblk))*ctime*cslope
+!                       trcrn(i,j,nt+k-1,n,iblk) = trcrn(i,j,nt+k-1,n,iblk) +(trcrn_rest(i,j,nt+k-1,n,iblk)- trcrn(i,j,nt+k-1,n,iblk))*cslope!                            &
+!                      trcrn(i,j,nt+k-1,n,iblk) = trcrn(i,jhi,nt+k-1,n,iblk)+ (trcrn_rest(i,j,nt+k-1,n,iblk)-trcrn(i,jhi,nt+k-1,n,iblk))*ctime
+                     enddo 
+                  else 
+                     trcrn(i,j,nt,n,iblk) = trcrn_rest(i,j,nt,n,iblk)!+(trcrn_rest(i,j,nt,n,iblk)- trcrn(i,j,nt,n,iblk))*ctime*cslope
+!                       trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk)&
+! 					       +(trcrn_rest(i,j,nt,n,iblk)- trcrn(i,j,nt,n,iblk))*cslope
+!                       trcrn(i,j,nt,n,iblk) = trcrn(i,jhi,nt,n,iblk) + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,jhi,nt,n,iblk))*ctime
+                  endif 
                enddo
-            enddo
-            enddo
-            enddo
+           
+            if (aicen(i,j,n,iblk) >real(0)) then
+                if ((vicen(i,j,n,iblk)/aicen(i,j,n,iblk) < real(1e-2)) .or. (aicen(i,j,n,iblk) < real(1e-2))) then
+                
+                        aicen(i,j,n,iblk)  = c0
+                        vicen(i,j,n,iblk)  = c0
+                        vsnon(i,j,n,iblk)  = c0
+                        trcrn(i,j,:,n,iblk) = c0
+                endif
+            endif
+            enddo !n
+            call cleanup_itd (dt,         ntrcr,            &
+                        nilyr,                nslyr,            &
+                        ncat,                 hin_max,          &
+                        aicen(i,j,:,iblk),    trcrn(i,j,1:ntrcr,:,iblk),                        &
+                        vicen(i,j,:,iblk),    vsnon(i,j,:,iblk),                        &
+                        aice0(i,j,iblk),      aice(i,j,iblk),                       &
+                        n_aero,                                 &
+                        nbtrcr,               nblyr,            &
+                        tr_aero,                                &
+                        tr_pond_topo,                           &
+                        first_ice(i,j,:,iblk),                              &
+                        trcr_depend(1:ntrcr), trcr_base,                 &
+                        n_trcr_strata,        nt_strata,        &
+                        fpond(i,j,iblk),      fresh(i,j,iblk),                      &
+                        fsalt(i,j,iblk),      fhocn(i,j,iblk),                      &
+                        faero_ocn(i,j,:,iblk),fiso_ocn(i,j,:,iblk),                     &
+                        flux_bio(i,j,1:nbtrcr,iblk),Tf(i,j,iblk))
+            enddo !i
+            enddo !j
+            
+!             call cleanup_itd (dt,                  ntrcr,            &
+!                         nilyr,                nslyr,            &
+!                         ncat,                 hin_max,          &
+!                         aicen(i,j,:,iblk),   	  &
+!                         trcrn(i,j,1:ntrcr,:,iblk),&
+!                         vicen   (i,j,:,iblk),	  &
+!                         vsnon (i,j,  :,iblk),	  &
+!                         aice0   (i,j,  iblk),	  & 
+!                         aice      (i,j,iblk),     &
+!                         n_aero,           	  &
+!                         nbtrcr,           	  &   
+!                         nblyr,            	  &
+!                         tr_aero,                  &
+!                         tr_pond_topo,             &
+!                         first_ice(i,j,:,iblk),    &
+!                         trcr_depend(1:ntrcr),     &
+!                         trcr_base,        	  &
+!                         n_trcr_strata,            &
+!                         nt_strata,                &
+!                         fpond(i,j,iblk),          &
+!                         fresh(i,j,  iblk),	  &
+!                         fsalt(i,j,iblk),   	  &
+!                         fhocn(i,j,  iblk),	  &
+!                         faero_ocn(i,j,:,iblk),	  &
+!                         fiso_ocn(i,j,:,iblk), 	  &
+!                         fzsal(i,j,  iblk),    	  &
+!                         flux_bio(i,j,1:nbtrcr,iblk))
+!             
+
+
+
+            
+
+                               
+                               
+!             if (l_stop) then
+!                 write (nu_diag,*) ' my_task, iblk =', &
+!                                    my_task, iblk
+!                 write (nu_diag,*) 'Global block:', this_block%block_id
+!                 if (istop > 0 .and. jstop > 0) &
+!                      write(nu_diag,*) 'Global i and j:', &
+!                                       this_block%i_glob(istop), &
+!                                       this_block%j_glob(jstop) 
+!                 call abort_ice ('ice: ITD cleanup error in ice_HaloRestore')
+!             endif
+            
          endif
-      endif
+!       endif
+      
+      
 
    enddo ! iblk
    !$OMP END PARALLEL DO
-
+!     write (nu_diag,*) 'Restoring ice north edge...RESTORED!'
+   
+   call bound_state (aicen, vicen, vsnon, ntrcr, trcrn)
+   
+   
    call ice_timer_stop(timer_bound)
 
  end subroutine ice_HaloRestore
