@@ -90,9 +90,18 @@
 
       if (z_tracers) call get_atm_bgc                   ! biogeochemistry
 
+!      call init_flux_atm  ! Initialize atmosphere fluxes sent to coupler
+!      call init_flux_ocn  ! initialize ocean fluxes sent to coupler
+      !if (my_task == master_task) then      
+       if (sea_ice_time_bry) call get_forcing_bry
+      !endif
 
-      if (sea_ice_time_bry) call get_forcing_bry
+!     call get_forcing_atmo     ! atmospheric forcing from data
+!     call get_forcing_ocn(dt)  ! ocean forcing from data
 
+      !if (restore_ice) call ice_HaloRestore
+      !endif
+      !call ice_step
 
       call init_flux_atm  ! Initialize atmosphere fluxes sent to coupler
       call init_flux_ocn  ! initialize ocean fluxes sent to coupler
@@ -412,7 +421,7 @@
                   call ufs_logfhour(trim(logmsg),timesecs/c3600)
                end if
             end do
-         end ifi
+         end if
 
       end subroutine ice_step
 

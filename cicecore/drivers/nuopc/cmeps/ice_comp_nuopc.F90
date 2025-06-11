@@ -97,7 +97,7 @@ module ice_comp_nuopc
   integer                      :: dbug = 0
   logical                      :: profile_memory = .false.
   logical                      :: mastertask
-  logical                      :: runtimelog = .false.
+  logical                      :: runtimelog = .true.
   logical                      :: restart_eor = .false. !End of run restart flag
 #ifndef CESMCOUPLED
   type(is_restart_fh_type)     :: restartfh_info     ! For flexible restarts in UFS
@@ -1014,19 +1014,22 @@ contains
     type(ESMF_State)           :: importState, exportState
     character(ESMF_MAXSTR)     :: cvalue
     real(dbl_kind)             :: eccen, obliqr, lambm0, mvelpp
-    integer                    :: shrlogunit ! original log unit
-    integer                    :: k,n        ! index
-    logical                    :: stop_now   ! .true. ==> stop at the end of this run phase
-    integer                    :: ymd        ! Current date (YYYYMMDD)
-    integer                    :: tod        ! Current time of day (sec)
-    integer                    :: curr_ymd   ! Current date (YYYYMMDD)
-    integer                    :: curr_tod   ! Current time of day (s)
-    integer                    :: yy,mm,dd   ! year, month, day, time of day
-    integer                    :: ymd_sync   ! Sync date (YYYYMMDD)
-    integer                    :: yr_sync    ! Sync current year
-    integer                    :: mon_sync   ! Sync current month
-    integer                    :: day_sync   ! Sync current day
-    integer                    :: tod_sync   ! Sync current time of day (sec)
+    integer                    :: shrlogunit       ! original log unit
+    integer                    :: k,n              ! index
+    logical                    :: stop_now         ! .true. ==> stop at the end of this run phase
+    integer                    :: ymd              ! Current date (YYYYMMDD)
+    integer                    :: tod              ! Current time of day (sec)
+    integer                    :: curr_ymd         ! Current date (YYYYMMDD)
+    integer                    :: curr_tod         ! Current time of day (s)
+    integer                    :: yy,mm,dd         ! year, month, day, time of day
+    integer                    :: ymd_sync         ! Sync date (YYYYMMDD)
+    integer                    :: yr_sync          ! Sync current year
+    integer                    :: mon_sync         ! Sync current month
+    integer                    :: day_sync         ! Sync current day
+    integer                    :: tod_sync         ! Sync current time of day (sec)
+    integer                    :: second_coupling  ! number of seconds between tod_sync and tod
+    integer                    :: i             ! for loop index
+    integer                    :: num_cice_steps   ! number of steps to advance CICE in coupling interval
     character(char_len_long)   :: restart_date
     character(char_len_long)   :: restart_filename
     logical                    :: isPresent, isSet
@@ -1135,15 +1138,15 @@ contains
     call ice_cal_ymd2date(yr_sync, mon_sync, day_sync, ymd_sync)
 
     ! error check
-    if ( (ymd /= ymd_sync) .or. (tod /= tod_sync) ) then
-       if (my_task == master_task) then
-          write(nu_diag,*)' cice ymd=',ymd     ,'  cice tod= ',tod
-          write(nu_diag,*)' sync ymd=',ymd_sync,'  sync tod= ',tod_sync
-       end if
-       call ESMF_LogWrite(subname//" CICE clock not in sync with ESMF model clock",ESMF_LOGMSG_ERROR)
-       rc = ESMF_FAILURE
-       return
-    end if
+    !if ( (ymd /= ymd_sync) .or. (tod /= tod_sync) ) then
+    !   if (my_task == master_task) then
+    !      write(nu_diag,*)' cice ymd=',ymd     ,'  cice tod= ',tod
+    !      write(nu_diag,*)' sync ymd=',ymd_sync,'  sync tod= ',tod_sync
+    !   end if
+    !   call ESMF_LogWrite(subname//" CICE clock not in sync with ESMF model clock",ESMF_LOGMSG_ERROR)
+    !   rc = ESMF_FAILURE
+    !   return
+    !end if
 
     !--------------------------------
     ! Determine if time to write restart
@@ -1213,11 +1216,50 @@ contains
     !--------------------------------
     ! Advance cice and timestep update
     !--------------------------------
-
-    if(profile_memory) call ESMF_VMLogMemInfo("Entering CICE_Run : ")
-    call CICE_Run()
-    if(profile_memory) call ESMF_VMLogMemInfo("Leaving CICE_Run : ")
-
+    !call ESMF_LogWrite('PRE CICE_RUN', ESMF_LOGMSG_INFO) 
+    !if(profile_memory) call ESMF_VMLogMemInfo("Entering CICE_Run : ") 
+    !call CICE_Run()
+    !if(profile_memory) call ESMF_VMLogMemInfo("Leaving CICE_Run : ")
+    !call ESMF_LogWrite('POST CICE_RUN', ESMF_LOGMSG_INFO)i
+    
+    
+    if (ymd_sync > ymd) then
+       second_coupling = abs((tod_sync + int(86400)) - tod)
+    else
+       second_coupling = abs(tod_sync - tod)
+    endif
+    
+    num_cice_steps = int(second_coupling/dt)
+    
+    if (mod(int(second_coupling),int(dt)) /= 0) then
+       call ESMF_LogWrite('Coupling step cannot be divided by dt, please adjust to avoid lack of steps!', ESMF_LOGMSG_INFO)     
+          write(nu_diag,*)' cice ymd=',ymd     ,'  cice tod= ',tod
+          write(nu_diag,*)' sync ymd=',ymd_sync,'  sync tod= ',tod_sync 
+          write(nu_diag,*)' num_cice_steps=',num_cice_steps
+    end if
+    
+    do i = 1, 1+num_cice_steps-1
+       call ESMF_LogWrite('PRE CICE_RUN', ESMF_LOGMSG_INFO)
+       if(profile_memory) call ESMF_VMLogMemInfo("Entering CICE_Run : ")   
+       call CICE_Run()
+       !it = it + 1
+       if(profile_memory) call ESMF_VMLogMemInfo("Leaving CICE_Run : ")
+       call ESMF_LogWrite('POST CICE_RUN', ESMF_LOGMSG_INFO)
+    end do
+    
+    tod = msec
+    ymd = idate 
+    ! error check
+    if ( (ymd /= ymd_sync) .or. (tod /= tod_sync) ) then
+       if (my_task == master_task) then
+          write(nu_diag,*)' cice ymd=',ymd     ,'  cice tod= ',tod
+          write(nu_diag,*)' sync ymd=',ymd_sync,'  sync tod= ',tod_sync
+       end if
+       call ESMF_LogWrite(subname//" CICE clock not in sync with ESMF model clock",ESMF_LOGMSG_ERROR)
+       rc = ESMF_FAILURE
+       return
+    end if
+    
     !--------------------------------
     ! Create export state
     !--------------------------------

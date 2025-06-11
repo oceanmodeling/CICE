@@ -42,6 +42,7 @@
                 ice_read,           &
                 ice_read_ext,       &
                 ice_read_nc,        &
+                ice_read_nc_bry,    &
                 ice_read_global,    &
                 ice_read_global_nc, &
                 ice_read_nc_uv,     &
@@ -52,6 +53,10 @@
                 ice_read_vec_nc,    &
                 ice_get_ncvarsize,  &
                 ice_check_nc,       &
+                ice_read_nc_bry_2D, &
+                ice_read_nc_bry_3D, &
+                ice_read_nc_bry_4D, &
+                snow_read_nc_bry_4D,&
                 ice_close_nc
 
       interface ice_write

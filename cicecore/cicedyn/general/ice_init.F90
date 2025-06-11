@@ -59,22 +59,19 @@
       subroutine input_data
 
       use ice_broadcast, only: broadcast_scalar, broadcast_array
-      use ice_diagnostics, only: &
-          diag_file, print_global, print_points, latpnt, lonpnt, &
-          debug_model, debug_model_step, debug_model_task, &
-          debug_model_i, debug_model_j, debug_model_iblk
-      use ice_domain, only: close_boundaries
-      use ice_domain_size, only: &
-          ncat, nilyr, nslyr, nblyr, nfsd, nfreq, &
-          n_iso, n_aero, n_zaero, n_algae, &
-          n_doc, n_dic, n_don, n_fed, n_fep, &
-          max_nstrm
-      use ice_calendar, only: &
-          year_init, month_init, day_init, sec_init, &
-          istep0, histfreq, histfreq_n, histfreq_base, &
-          dumpfreq, dumpfreq_n, diagfreq, dumpfreq_base, &
-          npt, dt, ndtd, days_per_year, use_leap_years, &
-          write_ic, dump_last, npt_unit
+      use ice_diagnostics, only: diag_file, print_global, print_points, latpnt, lonpnt, &
+                                 debug_model, debug_model_step, debug_model_task, &
+                                 debug_model_i, debug_model_j, debug_model_iblk
+      use ice_domain, only: close_boundaries, sea_ice_time_bry
+      use ice_domain_size, only: ncat, nilyr, nslyr, nblyr, nfsd, nfreq, &
+                                 n_iso, n_aero, n_zaero, n_algae, &
+                                 n_doc, n_dic, n_don, n_fed, n_fep, &
+                                 max_nstrm
+      use ice_calendar, only: year_init, month_init, day_init, sec_init, &
+                              istep0, histfreq, histfreq_n, histfreq_base, &
+                              dumpfreq, dumpfreq_n, diagfreq, dumpfreq_base, &
+                              npt, dt, ndtd, days_per_year, use_leap_years, &
+                              write_ic, dump_last, npt_unit
       use ice_arrays_column, only: oceanmixed_ice
       use ice_restart_column, only: &
           restart_age, restart_FY, restart_lvl, &
@@ -103,7 +100,7 @@
           ice_data_type, ice_data_conc, ice_data_dist, &
           snw_filename, &
           snw_tau_fname, snw_kappa_fname, snw_drdt0_fname, &
-          snw_rhos_fname, snw_Tgrd_fname, snw_T_fname
+          snw_rhos_fname, snw_Tgrd_fname, snw_T_fname, sea_ice_bry_dir
       use ice_arrays_column, only: bgc_data_dir, fe_data_type
       use ice_grid, only: &
           grid_file, gridcpl_file, kmt_file, &
@@ -289,7 +286,7 @@
         fyear_init,     ycycle,          wave_spec_file,restart_coszen, &
         atm_data_dir,   ocn_data_dir,    bgc_data_dir,                  &
         atm_data_format, ocn_data_format, rotate_wind,                  &
-        oceanmixed_file, atm_data_version
+        oceanmixed_file, atm_data_version,sea_ice_bry_dir
 
       !-----------------------------------------------------------------
       ! default values
@@ -559,6 +556,7 @@
       restore_ocn     = .false.   ! restore sst if true
       trestore        = 90        ! restoring timescale, days (0 instantaneous)
       restore_ice     = .false.   ! restore ice state on grid edges if true
+      sea_ice_bry_dir = ' '
       debug_forcing   = .false.   ! true writes diagnostics for input forcing
 
       latpnt(1) =  90._dbl_kind   ! latitude of diagnostic point 1 (deg)
@@ -1146,6 +1144,7 @@
       call broadcast_scalar(restore_ocn,          master_task)
       call broadcast_scalar(trestore,             master_task)
       call broadcast_scalar(restore_ice,          master_task)
+      call broadcast_scalar(sea_ice_bry_dir,      master_task) 
       call broadcast_scalar(debug_forcing,        master_task)
       call broadcast_array (latpnt(1:2),          master_task)
       call broadcast_array (lonpnt(1:2),          master_task)
@@ -1648,6 +1647,12 @@
          if (my_task == master_task) write(nu_diag,*) subname//' ERROR: atm_data_type=monthly and calc_strair=T'
          abort_list = trim(abort_list)//":12"
       endif
+
+      if (sea_ice_time_bry) then
+            write(nu_diag,*) ' sea_ice_bry_dir           = ', &
+                               trim(sea_ice_bry_dir)
+      endif
+      
 
       if (ktherm == 2 .and. .not. calc_Tsfc) then
          if (my_task == master_task) write(nu_diag,*) subname//' ERROR: ktherm = 2 and calc_Tsfc=F'
@@ -2608,6 +2613,11 @@
          elseif (trim(atm_data_type) == 'default') then
             write(nu_diag,1031) ' default_season   = ', trim(default_season)
          endif
+
+         if (sea_ice_time_bry) then
+            write(nu_diag,*) ' sea_ice_bry_dir           = ', &
+                               trim(sea_ice_bry_dir)
+         endif 
 
          if (wave_spec) then
             write(nu_diag,1031) ' wave_spec_file   = ', trim(wave_spec_file)

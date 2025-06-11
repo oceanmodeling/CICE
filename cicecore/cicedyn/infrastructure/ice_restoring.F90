@@ -388,9 +388,6 @@
       logical (kind=log_kind) :: &
          tr_brine
 
-      integer (kind=int_kind), dimension(nx_block*ny_block) :: &
-         indxi, indxj    ! compressed indices for cells with restoring
-
       real (kind=dbl_kind) :: &
          Tsfc, hbar, &
          hsno_init       ! initial snow thickness
@@ -709,86 +706,8 @@
          jlo = this_block%jlo
          jhi = this_block%jhi
 
-      if (this_block%iblock == 1) then              ! west edge
-         if (trim(ew_boundary_type) /= 'cyclic') then
-            do n = 1, ncat
-            do j = 1, ny_block
-            do i = 1, ilo
-               aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
-                  + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
-               vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
-                  + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
-               vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
-                  + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
-               do nt = 1, ntrcr
-                  trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
-                     + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
-               enddo
-            enddo
-            enddo
-            enddo
-         endif
-      endif
-
-      if (this_block%iblock == nblocks_x) then  ! east edge
-         if (trim(ew_boundary_type) /= 'cyclic') then
-            ! locate ghost cell column (avoid padding)
-            ibc = nx_block
-            do i = nx_block, 1, -1
-               npad = 0
-               if (this_block%i_glob(i) == 0) then
-                  do j = 1, ny_block
-                     npad = npad + this_block%j_glob(j)
-                  enddo
-               endif
-               if (npad /= 0) ibc = ibc - 1
-            enddo
-
-            do n = 1, ncat
-            do j = 1, ny_block
-            do i = ihi, ibc
-               aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
-                  + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
-               vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
-                  + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
-               vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
-                  + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
-               do nt = 1, ntrcr
-                  trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
-                     + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
-               enddo
-            enddo
-            enddo
-            enddo
-         endif
-      endif
-
-      if (this_block%jblock == 1) then              ! south edge
-         if (trim(ns_boundary_type) /= 'cyclic') then
-            do n = 1, ncat
-            do j = 1, jlo
-            do i = 1, nx_block
-               aicen(i,j,n,iblk) = aicen(i,j,n,iblk) &
-                  + (aicen_rest(i,j,n,iblk)-aicen(i,j,n,iblk))*ctime
-               vicen(i,j,n,iblk) = vicen(i,j,n,iblk) &
-                  + (vicen_rest(i,j,n,iblk)-vicen(i,j,n,iblk))*ctime
-               vsnon(i,j,n,iblk) = vsnon(i,j,n,iblk) &
-                  + (vsnon_rest(i,j,n,iblk)-vsnon(i,j,n,iblk))*ctime
-               do nt = 1, ntrcr
-                  trcrn(i,j,nt,n,iblk) = trcrn(i,j,nt,n,iblk) &
-                     + (trcrn_rest(i,j,nt,n,iblk)-trcrn(i,j,nt,n,iblk))*ctime
-               enddo
-            enddo
-            enddo
-            enddo
-         endif
-      endif
-
       if (this_block%jblock == nblocks_y) then  ! north edge
-         if (trim(ns_boundary_type) /= 'cyclic' .and. &
-             trim(ns_boundary_type) /= 'tripole' .and. &
-             trim(ns_boundary_type) /= 'tripoleT') then
-            ! locate ghost cell row (avoid padding)
+	  ! locate ghost cell row (avoid padding)
             ibc = ny_block
             do j = ny_block, 1, -1
                npad = 0
@@ -945,23 +864,21 @@
                 endif
             endif
             enddo !n
-            call cleanup_itd (dt,         ntrcr,            &
-                        nilyr,                nslyr,            &
-                        ncat,                 hin_max,          &
-                        aicen(i,j,:,iblk),    trcrn(i,j,1:ntrcr,:,iblk),                        &
-                        vicen(i,j,:,iblk),    vsnon(i,j,:,iblk),                        &
-                        aice0(i,j,iblk),      aice(i,j,iblk),                       &
-                        n_aero,                                 &
-                        nbtrcr,               nblyr,            &
-                        tr_aero,                                &
-                        tr_pond_topo,                           &
-                        first_ice(i,j,:,iblk),                              &
-                        trcr_depend(1:ntrcr), trcr_base,                 &
-                        n_trcr_strata,        nt_strata,        &
-                        fpond(i,j,iblk),      fresh(i,j,iblk),                      &
-                        fsalt(i,j,iblk),      fhocn(i,j,iblk),                      &
-                        faero_ocn(i,j,:,iblk),fiso_ocn(i,j,:,iblk),                     &
-                        flux_bio(i,j,1:nbtrcr,iblk),Tf(i,j,iblk))
+            call cleanup_itd (dt,                hin_max,                  &
+                              aicen(i,j,:,iblk), trcrn(i,j,1:ntrcr,:,iblk),&
+                              vicen(i,j,:,iblk),    vsnon(i,j,:,iblk),     &
+                              aice0(i,j,iblk),        aice(i,j,iblk),      &
+                              tr_aero,                                     &
+                              tr_pond_topo,                                &
+                              first_ice,                                   &
+                              trcr_depend(1:ntrcr), trcr_base,             &
+                              n_trcr_strata,        nt_strata,             &
+                              fpond(i,j,iblk),      fresh(i,j,iblk),       &
+                              fsalt(i,j,iblk),      fhocn(i,j,iblk),       &
+                              faero_ocn(i,j,:,iblk),fiso_ocn(i,j,:,iblk),  &
+                              flux_bio(i,j,1:nbtrcr,iblk),Tf(i,j,iblk)     )
+            
+            
             enddo !i
             enddo !j
             

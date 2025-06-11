@@ -764,7 +764,7 @@ contains
 
     ! Merid atmospheric velocity ---------------------------------------------
     call state_getimport(importState, 'Sa_v10m', output=aflds, index=4, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) returni
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
 
     

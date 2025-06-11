@@ -1641,113 +1641,15 @@
       ! set values in icepack
       !-----------------------------------------------------------------
 
-      call icepack_init_parameters(ktherm_in=ktherm, shortwave_in=shortwave, &
-           scale_bgc_in=scale_bgc, skl_bgc_in=skl_bgc, z_tracers_in=z_tracers, &
-           dEdd_algae_in=dEdd_algae, solve_zbgc_in=solve_zbgc, &
-           bgc_flux_type_in=bgc_flux_type, grid_o_in=grid_o, l_sk_in=l_sk, &
-           initbio_frac_in=initbio_frac, frazil_scav_in=frazil_scav, &
-           grid_oS_in=grid_oS, l_skS_in=l_skS, phi_snow_in=phi_snow, &
-           algal_vel_in=algal_vel, R_dFe2dust_in=R_dFe2dust, &
-           dustFe_sol_in=dustFe_sol, T_max_in=T_max, fsal_in=fsal, &
-           op_dep_min_in=op_dep_min, fr_graze_s_in=fr_graze_s, &
-           fr_graze_e_in=fr_graze_e, fr_mort2min_in=fr_mort2min, &
-           fr_dFe_in=fr_dFe, k_nitrif_in=k_nitrif, t_iron_conv_in=t_iron_conv, &
-           max_loss_in=max_loss, max_dfe_doc1_in=max_dfe_doc1, fr_resp_in=fr_resp, &
-           fr_resp_s_in=fr_resp_s, y_sk_DMS_in=y_sk_DMS, t_sk_conv_in=t_sk_conv, &
-           t_sk_ox_in=t_sk_ox, modal_aero_in=modal_aero)
-      call icepack_warnings_flush(nu_diag)
-      if (icepack_warnings_aborted()) call abort_ice(error_message=subname, &
-          file=__FILE__, line=__LINE__)
-
-      call icepack_init_parameters ( &
-        ratio_Si2N_diatoms_in = ratio_Si2N_diatoms, &
-        ratio_Si2N_sp_in      = ratio_Si2N_sp, &
-        ratio_Si2N_phaeo_in   = ratio_Si2N_phaeo, &
-        ratio_S2N_diatoms_in  = ratio_S2N_diatoms, &
-        ratio_S2N_sp_in       = ratio_S2N_sp, &
-        ratio_S2N_phaeo_in    = ratio_S2N_phaeo, &
-        ratio_Fe2C_diatoms_in = ratio_Fe2C_diatoms, &
-        ratio_Fe2C_sp_in      = ratio_Fe2C_sp, &
-        ratio_Fe2C_phaeo_in   = ratio_Fe2C_phaeo, &
-        ratio_Fe2N_diatoms_in = ratio_Fe2N_diatoms, &
-        ratio_Fe2N_sp_in      = ratio_Fe2N_sp, &
-        ratio_Fe2N_phaeo_in   = ratio_Fe2N_phaeo, &
-        ratio_C2N_diatoms_in  = ratio_C2N_diatoms, &
-        ratio_C2N_sp_in       = ratio_C2N_sp, &
-        ratio_C2N_phaeo_in    = ratio_C2N_phaeo, &
-        ratio_chl2N_diatoms_in = ratio_chl2N_diatoms, &
-        ratio_chl2N_sp_in     = ratio_chl2N_sp, &
-        ratio_chl2N_phaeo_in  = ratio_chl2N_phaeo, &
-        F_abs_chl_diatoms_in  = F_abs_chl_diatoms, &
-        F_abs_chl_sp_in       = F_abs_chl_sp, &
-        F_abs_chl_phaeo_in    = F_abs_chl_phaeo, &
-        ratio_Fe2DON_in       = ratio_Fe2DON, &
-        ratio_C2N_proteins_in = ratio_C2N_proteins, &
-        ratio_Fe2DOC_s_in     = ratio_Fe2DOC_s, &
-        ratio_Fe2DOC_l_in     = ratio_Fe2DOC_l, &
-        chlabs_diatoms_in     = chlabs_diatoms, &
-        chlabs_sp_in          = chlabs_sp, &
-        chlabs_phaeo_in       = chlabs_phaeo, &
-        alpha2max_low_diatoms_in = alpha2max_low_diatoms, &
-        alpha2max_low_sp_in   = alpha2max_low_sp, &
-        alpha2max_low_phaeo_in = alpha2max_low_phaeo, &
-        beta2max_diatoms_in   = beta2max_diatoms, &
-        beta2max_sp_in        = beta2max_sp, &
-        beta2max_phaeo_in     = beta2max_phaeo, &
-        mu_max_diatoms_in     = mu_max_diatoms, &
-        mu_max_sp_in          = mu_max_sp, &
-        mu_max_phaeo_in       = mu_max_phaeo, &
-        grow_Tdep_diatoms_in  = grow_Tdep_diatoms, &
-        grow_Tdep_sp_in       = grow_Tdep_sp, &
-        grow_Tdep_phaeo_in    = grow_Tdep_phaeo, &
-        fr_graze_diatoms_in   = fr_graze_diatoms, &
-        fr_graze_sp_in        = fr_graze_sp, &
-        fr_graze_phaeo_in     = fr_graze_phaeo, &
-        mort_pre_diatoms_in   = mort_pre_diatoms, &
-        mort_pre_sp_in        = mort_pre_sp, &
-        mort_pre_phaeo_in     = mort_pre_phaeo, &
-        mort_Tdep_diatoms_in  = mort_Tdep_diatoms, &
-        mort_Tdep_sp_in       = mort_Tdep_sp, &
-        mort_Tdep_phaeo_in    = mort_Tdep_phaeo, &
-        k_exude_diatoms_in    = k_exude_diatoms, &
-        k_exude_sp_in         = k_exude_sp, &
-        k_exude_phaeo_in      = k_exude_phaeo, &
-        K_Nit_diatoms_in      = K_Nit_diatoms, &
-        K_Nit_sp_in           = K_Nit_sp, &
-        K_Nit_phaeo_in        = K_Nit_phaeo, &
-        K_Am_diatoms_in       = K_Am_diatoms, &
-        K_Am_sp_in            = K_Am_sp, &
-        K_Am_phaeo_in         = K_Am_phaeo, &
-        K_Sil_diatoms_in      = K_Sil_diatoms, &
-        K_Sil_sp_in           = K_Sil_sp, &
-        K_Sil_phaeo_in        = K_Sil_phaeo, &
-        K_Fe_diatoms_in       = K_Fe_diatoms, &
-        K_Fe_sp_in            = K_Fe_sp, &
-        K_Fe_phaeo_in         = K_Fe_phaeo, &
-        f_doc_s_in            = f_doc_s, &
-        f_doc_l_in            = f_doc_l, &
-        f_don_protein_in      = f_don_protein, &
-        kn_bac_protein_in     = kn_bac_protein, &
-        f_don_Am_protein_in   = f_don_Am_protein, &
-        f_exude_s_in          = f_exude_s, &
-        f_exude_l_in          = f_exude_l, &
-        k_bac_s_in            = k_bac_s, &
-        k_bac_l_in            = k_bac_l, &
-        algaltype_diatoms_in  = algaltype_diatoms, &
-        algaltype_sp_in       = algaltype_sp, &
-        algaltype_phaeo_in    = algaltype_phaeo, &
-        dictype_1_in          = dictype_1, &
-        doctype_s_in          = doctype_s, &
-        doctype_l_in          = doctype_l, &
-        dontype_protein_in    = dontype_protein, &
-        fedtype_1_in          = fedtype_1, &
-        feptype_1_in          = feptype_1, &
-        zaerotype_bc1_in      = zaerotype_bc1, &
-        zaerotype_bc2_in      = zaerotype_bc2, &
-        zaerotype_dust1_in    = zaerotype_dust1, &
-        zaerotype_dust2_in    = zaerotype_dust2, &
-        zaerotype_dust3_in    = zaerotype_dust3, &
-        zaerotype_dust4_in    = zaerotype_dust4)
+      call icepack_init_parameters( &
+          ktherm_in=ktherm, shortwave_in=shortwave, &
+          skl_bgc_in=skl_bgc, z_tracers_in=z_tracers, scale_bgc_in=scale_bgc, &
+          dEdd_algae_in=dEdd_algae, &
+          solve_zbgc_in=solve_zbgc, &
+          bgc_flux_type_in=bgc_flux_type, grid_o_in=grid_o, l_sk_in=l_sk, &
+          initbio_frac_in=initbio_frac, &
+          phi_snow_in=phi_snow, frazil_scav_in = frazil_scav, &
+          modal_aero_in=modal_aero)
       call icepack_warnings_flush(nu_diag)
       if (icepack_warnings_aborted()) call abort_ice(error_message=subname, &
           file=__FILE__, line=__LINE__)
