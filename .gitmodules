@@ -1,3 +1,4 @@
 [submodule "icepack"]
 	path = icepack
 	url = https://github.com/SmithJos13/icepack
+	branch = feature/cice_old
