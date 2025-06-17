@@ -97,7 +97,7 @@ module ice_comp_nuopc
   integer                      :: dbug = 0
   logical                      :: profile_memory = .false.
   logical                      :: mastertask
-  logical                      :: runtimelog = .true.
+  logical                      :: runtimelog = .false.
   logical                      :: restart_eor = .false. !End of run restart flag
 #ifndef CESMCOUPLED
   type(is_restart_fh_type)     :: restartfh_info     ! For flexible restarts in UFS
@@ -1345,12 +1345,10 @@ contains
     character(len=256)       :: stop_option    ! Stop option units
     integer                  :: stop_n         ! Number until stop interval
     integer                  :: stop_ymd       ! Stop date (YYYYMMDD)
+    integer                  :: dtime
     type(ESMF_ALARM)         :: stop_alarm
     character(len=128)       :: name
     integer                  :: alarmcount
-#ifndef CESMCOUPLED
-    integer                  :: dtime
-#endif
     character(len=*),parameter :: subname=trim(modName)//':(ModelSetRunClock) '
     !--------------------------------
 
