@@ -21,12 +21,12 @@ module ice_import_export
   use ice_flux_bgc       , only : Qa_iso, Qref_iso, HDO_ocn, H2_18O_ocn, H2_16O_ocn
   use ice_flux           , only : fresh, fsalt, zlvl, uatm, vatm, potT, Tair, Qa
   use ice_flux           , only : rhoa, swvdr, swvdf, swidr, swidf, flw, frain
-  use ice_flux           , only : fsnow, uocn, vocn, sst, ss_tltx, ss_tlty, frzmlt
+  use ice_flux           , only : fsnow, uocn, vocn, sst, ss_tltx, ss_tlty, frzmlt,hmix
   use ice_flux           , only : send_i2x_per_cat
   use ice_flux           , only : sss, Tf, wind, fsw
-  use ice_arrays_column  , only : floe_rad_c, wave_spectrum
+  use ice_arrays_column  , only : floe_rad_c, wave_spectrum, Cdn_ocn
   use ice_state          , only : vice, vsno, aice, aicen_init, trcr, trcrn
-  use ice_grid           , only : tlon, tlat, tarea, tmask, anglet, hm
+  use ice_grid           , only : tlon, tlat, tarea, tmask, anglet, hm,bathymetry
   use ice_grid           , only : grid_format
   use ice_mesh_mod       , only : ocn_gridcell_frac
   use ice_boundary       , only : ice_HaloUpdate
@@ -39,13 +39,15 @@ module ice_import_export
   use icepack_intfc      , only : icepack_liquidus_temperature
   use icepack_intfc      , only : icepack_sea_freezing_temperature
   use icepack_intfc      , only : icepack_query_tracer_indices
-  use icepack_parameters , only : puny, c2
+  use icepack_parameters , only : puny, c2, cprho
   use cice_wrapper_mod   , only : t_startf, t_stopf, t_barrierf
+  use ice_calendar       , only : dt
 #ifdef CESMCOUPLED
   use shr_frz_mod        , only : shr_frz_freezetemp
   use shr_mpi_mod        , only : shr_mpi_min, shr_mpi_max
 #endif
 
+  use ice_state, only: uvel, vvel 
   implicit none
   public
 
@@ -177,22 +179,25 @@ contains
     call fldlist_add(fldsToIce_num, fldsToIce, 'So_s'    )
     call fldlist_add(fldsToIce_num, fldsToIce, 'So_u'    )
     call fldlist_add(fldsToIce_num, fldsToIce, 'So_v'    )
-    call fldlist_add(fldsToIce_num, fldsToIce, 'Fioo_q'  )
+!    call fldlist_add(fldsToIce_num, fldsToIce, 'Fioo_q'  )
+    call fldlist_add(fldsToIce_num, fldsToIce, 'So_hmix'    )
+!    call fldlist_add(fldsToIce_num, fldsToIce, 'So_hmix' )
     if (flds_wiso) then
        call fldlist_add(fldsToIce_num, fldsToIce, 'So_roce_wiso', ungridded_lbound=1, ungridded_ubound=3)
     end if
 
     ! from atmosphere
     call fldlist_add(fldsToIce_num, fldsToIce, 'Sa_z'       )
-    call fldlist_add(fldsToIce_num, fldsToIce, 'Sa_u'       )
-    call fldlist_add(fldsToIce_num, fldsToIce, 'Sa_v'       )
-    call fldlist_add(fldsToIce_num, fldsToIce, 'Sa_shum'    )
-    call fldlist_add(fldsToIce_num, fldsToIce, 'Sa_tbot'    )
-    call fldlist_add(fldsToIce_num, fldsToIce, 'Sa_pbot'    )
+    call fldlist_add(fldsToIce_num, fldsToIce, 'Sa_u10m'    )
+    call fldlist_add(fldsToIce_num, fldsToIce, 'Sa_v10m'    )
+    call fldlist_add(fldsToIce_num, fldsToIce, 'Sa_q2m'     )
+    call fldlist_add(fldsToIce_num, fldsToIce, 'Sa_t2m'     )
+    call fldlist_add(fldsToIce_num, fldsToIce, 'Sa_pslv'    )
     call fldlist_add(fldsToIce_num, fldsToIce, 'Faxa_swvdr' )
     call fldlist_add(fldsToIce_num, fldsToIce, 'Faxa_swvdf' )
     call fldlist_add(fldsToIce_num, fldsToIce, 'Faxa_swndr' )
     call fldlist_add(fldsToIce_num, fldsToIce, 'Faxa_swndf' )
+    call fldlist_add(fldsToIce_num, fldsToIce, 'Faxa_swnet' )
     call fldlist_add(fldsToIce_num, fldsToIce, 'Faxa_lwdn'  )
     call fldlist_add(fldsToIce_num, fldsToIce, 'Faxa_rain'  )
     call fldlist_add(fldsToIce_num, fldsToIce, 'Faxa_snow'  )
@@ -222,13 +227,17 @@ contains
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     end do
 
-    !-----------------
-    ! advertise export fields
-    !-----------------
+    !-------------------------
+    ! advertise export fields|
+    !-------------------------
+
+    ! This is the place where fields are advertised to mediator. Keep this consistent with mediator fields
+    ! - fldsFrIce: Field coming form the ice component
+    ! - Field: Si_* (Scalar from ice to mediator)
 
     call fldlist_add(fldsFrIce_num, fldsFrIce, trim(flds_scalar_name))
 
-    ! ice states
+    ! Ice states
     call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_imask' )
     call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_ifrac' )
     call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_t'     )
@@ -242,6 +251,18 @@ contains
     call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_avsdf' )
     call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_anidr' )
     call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_anidf' )
+    call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_uvel'  )
+    call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_vvel'  )
+    call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_frzmlt')
+
+
+    !Ice ocean drag coef.
+    !Added here as it better to send current veloicty and ice velocity to calculate
+    !Ice-to-ocean stress on the ocean model side. NOTE This is not need when coupling
+    !at ever time step; 
+    call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_CdnIO')
+    
+
 
     ! the following are advertised but might not be connected if they are not present
     ! in the cmeps esmFldsExchange_xxx_mod.F90 that is model specific
@@ -441,7 +462,7 @@ contains
 
     ! local variables
     integer,parameter                :: nflds=16
-    integer,parameter                :: nfldv=6
+    integer,parameter                :: nfldv=7
     integer                          :: i, j, iblk, n, k
     integer                          :: ilo, ihi, jlo, jhi !beginning and end of physical domain
     type(block)                      :: this_block         ! block information for current block
@@ -481,89 +502,120 @@ contains
     if (icepack_warnings_aborted()) call abort_ice(error_message=subname, &
         file=u_FILE_u, line=__LINE__)
 
-    ! Note that the precipitation fluxes received from the mediator
-    ! are in units of kg/s/m^2 which is what CICE requires.
-    ! Note also that the read in below includes only values needed
-    ! by the thermodynamic component of CICE.  Variables uocn, vocn,
-    ! ss_tltx, and ss_tlty are excluded. Also, because the SOM and
-    ! DOM don't  compute SSS.   SSS is not read in and is left at
-    ! the initilized value (see ice_flux.F init_coupler_flux) of
-    ! 34 ppt
-
     ! Use aflds to gather the halo updates of multiple fields
     ! Need to separate the scalar from the vector halo updates
 
     allocate(aflds(nx_block,ny_block,nflds,nblocks))
     aflds = c0
+    ! +------------------------------------------------------------------+
+    ! |                 Thremodynamic import variables                   |
+    ! +------------------------------------------------------------------+
+    !
+    ! In the following section all vairables need to run thermodynamic 
+    ! are imported. 
+    !
+    ! Dynamic Quantites are imported bellow (Search for Dynamics) 
+    !
+    !                   +---------------------------+
+    !                   |       Ocean Import        |
+    !                   +---------------------------+
 
-    ! import ocean states
-
+    ! Sea surface temperature --------------------------------------------
     call state_getimport(importState, 'So_t', output=aflds, index=1, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
+    ! Sea surface salinity ------------------------------------------------
     call state_getimport(importState, 'So_s', output=aflds, index=2, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    ! import atm states
+    ! Deep ocean heat flux at base of mixed layer -------------------------
 
+    !call state_getimport(importState, 'Fioo_q', output=aflds, index=9, &
+    !     areacor=med2mod_areacor, rc=rc)
+    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    !call ESMF_LogWrite("Ocean/ice flux imported! ", ESMF_LOGMSG_INFO)
+    ! import atm fluxes
+
+        
+    !                   +---------------------------+
+    !                   |       Atmos Import        |
+    !                   +---------------------------+
+    
+    ! Lowest atmospheric height -------------------------------------------
     call state_getimport(importState, 'Sa_z', output=aflds, index=3, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
+    ! Calc/Imp surface pressure -------------------------------------------------------------
     if (State_FldChk(importState, 'Sa_ptem') .and. State_fldchk(importState, 'Sa_dens')) then
        call state_getimport(importState, 'Sa_ptem', output=aflds, index=4, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
        call state_getimport(importState, 'Sa_dens', output=aflds, index=5, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    else if (State_FldChk(importState, 'Sa_pbot')) then
-       call state_getimport(importState, 'Sa_pbot', output=aflds, index=6, rc=rc)
+    else if (State_FldChk(importState, 'Sa_pslv')) then
+       call state_getimport(importState, 'Sa_pslv', output=aflds, index=6, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    else
-       call abort_ice(trim(subname)//&
-            ": ERROR either Sa_ptem and Sa_dens OR Sa_pbot must be in import state")
-    end if
+    else 
+       ! Nothing is defined so using a fill value of 100000Pa
+       
+       !call state_getimport(importState, 'Sa_tbot', output=aflds, index=6, rc=rc)
+       
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+         do iblk = 1, nblocks
+            do j = 1,ny_block 
+               do i = 1,nx_block 
+               aflds(i,j,6,iblk) = 100000._ESMF_KIND_R8 !
+               enddo
+            enddo
+         enddo
+    endif
 
-    call state_getimport(importState, 'Sa_tbot', output=aflds, index=7, rc=rc)
+
+    ! Surface temperature ---------------------------------------------------
+    call state_getimport(importState, 'Sa_t2m', output=aflds, index=7, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    
+    ! Specific Humidity -----------------------------------------------------
+    call state_getimport(importState, 'Sa_q2m', output=aflds, index=8, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    call state_getimport(importState, 'Sa_shum', output=aflds, index=8, rc=rc)
+ 
+    ! Net shortwave radiation ----------------------------------------------
+    call state_getimport(importState, 'Faxa_swnet', output=aflds, index=9, &
+         areacor=med2mod_areacor, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    
+    ! Shortwave bands -------------------------------------------------------
 
-    ! import ocn/ice fluxes
+    !call state_getimport(importState, 'Faxa_swvdr', output=aflds, index=10, &
+    !     areacor=med2mod_areacor, rc=rc)
+    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    call state_getimport(importState, 'Fioo_q', output=aflds, index=9, &
+    !call state_getimport(importState, 'Faxa_swndr', output=aflds, index=11, &
+    !     areacor=med2mod_areacor, rc=rc)
+    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    !call state_getimport(importState, 'Faxa_swvdf', output=aflds, index=12, &
+    !     areacor=med2mod_areacor, rc=rc)
+    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    !call state_getimport(importState, 'Faxa_swndf', output=aflds, index=13, &
+    !     areacor=med2mod_areacor, rc=rc)
+    !if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    ! Net Longwave radiation -----------------------------------------------
+    call state_getimport(importState, 'Faxa_lwdn', output=aflds, index=10, &
+         areacor=med2mod_areacor, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    
+    ! Rainfall rate --------------------------------------------------------
+    call state_getimport(importState, 'Faxa_rain', output=aflds, index=11, &
          areacor=med2mod_areacor, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    ! import atm fluxes
-
-    call state_getimport(importState, 'Faxa_swvdr', output=aflds, index=10, &
+    ! Snowfall rate --------------------------------------------------------
+    call state_getimport(importState, 'Faxa_snow', output=aflds, index=12, &
          areacor=med2mod_areacor, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
-    call state_getimport(importState, 'Faxa_swndr', output=aflds, index=11, &
-         areacor=med2mod_areacor, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
-    call state_getimport(importState, 'Faxa_swvdf', output=aflds, index=12, &
-         areacor=med2mod_areacor, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
-    call state_getimport(importState, 'Faxa_swndf', output=aflds, index=13, &
-         areacor=med2mod_areacor, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
-    call state_getimport(importState, 'Faxa_lwdn', output=aflds, index=14, &
-         areacor=med2mod_areacor, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
-    call state_getimport(importState, 'Faxa_rain', output=aflds, index=15, &
-         areacor=med2mod_areacor, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
-    call state_getimport(importState, 'Faxa_snow', output=aflds, index=16, &
-         areacor=med2mod_areacor, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
     ! perform a halo update
 
     if (.not.prescribed_ice) then
@@ -571,8 +623,21 @@ contains
        call ice_HaloUpdate(aflds, halo_info, field_loc_center, field_type_scalar)
        call t_stopf ('cice_imp_halo')
     endif
+ 
 
-    ! now fill in the ice internal data types
+    !                   +---------------------------+
+    !                   | Transfer to interal vars  |
+    !                   +---------------------------+
+
+    ! Thermodynamic quantities are written to the interal CICE vars
+    
+    ! NOTE: The Shortwave radiation is supplied as net and decomposed
+    ! If coupling to an atmosphere model, might want to consider
+    ! the implementation in the ufs-weather model.
+
+    ! Atmospheric level is also taken to be 10m
+
+    ! freezing melt potential is calucated bellow reather than imported. 
 
     !$OMP PARALLEL DO PRIVATE(iblk,i,j)
     do iblk = 1, nblocks
@@ -580,18 +645,18 @@ contains
           do i = 1,nx_block
              sst  (i,j,iblk)         = aflds(i,j, 1,iblk)
              sss  (i,j,iblk)         = aflds(i,j, 2,iblk)
-             zlvl (i,j,iblk)         = aflds(i,j, 3,iblk)
+             zlvl (i,j,iblk)         = real(10)!aflds(i,j, 3,iblk)
              ! see below for 4,5,6
              Tair (i,j,iblk)         = aflds(i,j, 7,iblk)
              Qa   (i,j,iblk)         = aflds(i,j, 8,iblk)
-             frzmlt (i,j,iblk)       = aflds(i,j, 9,iblk)
-             swvdr(i,j,iblk)         = aflds(i,j,10,iblk)
-             swidr(i,j,iblk)         = aflds(i,j,11,iblk)
-             swvdf(i,j,iblk)         = aflds(i,j,12,iblk)
-             swidf(i,j,iblk)         = aflds(i,j,13,iblk)
-             flw  (i,j,iblk)         = aflds(i,j,14,iblk)
-             frain(i,j,iblk)         = aflds(i,j,15,iblk)
-             fsnow(i,j,iblk)         = aflds(i,j,16,iblk)
+    !         frzmlt (i,j,iblk)       = aflds(i,j, 9,iblk)
+             swvdr(i,j,iblk)         = real(0.28)*aflds(i,j,9,iblk)
+             swidr(i,j,iblk)         = real(0.24)*aflds(i,j,9,iblk)
+             swvdf(i,j,iblk)         = real(0.31)*aflds(i,j,9,iblk)
+             swidf(i,j,iblk)         = real(0.17)*aflds(i,j,9,iblk)
+             flw  (i,j,iblk)         = aflds(i,j,10,iblk)
+             frain(i,j,iblk)         = aflds(i,j,11,iblk)
+             fsnow(i,j,iblk)         = aflds(i,j,12,iblk)
           end do
        end do
     end do
@@ -631,12 +696,12 @@ contains
           end do
        end do
        !$OMP END PARALLEL DO
-    else if (State_fldChk(importState, 'Sa_pbot')) then
+    else if (State_fldChk(importState, 'Sa_pslv')) then
        !$OMP PARALLEL DO PRIVATE(iblk,i,j)
        do iblk = 1, nblocks
           do j = 1,ny_block
              do i = 1,nx_block
-                inst_pres_height_lowest = aflds(i,j,6,iblk)
+                inst_pres_height_lowest = 100000._ESMF_KIND_R8 !flds(i,j,6,iblk)
                 if (inst_pres_height_lowest > 0.0_ESMF_KIND_R8) then
                    potT (i,j,iblk) = Tair(i,j,iblk) * (100000._ESMF_KIND_R8/inst_pres_height_lowest)**0.286_ESMF_KIND_R8
                 else
@@ -658,30 +723,61 @@ contains
     allocate(aflds(nx_block,ny_block,nfldv,nblocks))
     aflds = c0
 
-    ! Get velocity fields from ocean and atm and slope fields from ocean
-
+    ! +------------------------------------------------------------------+
+    ! |                 Dynamics import variables                        |
+    ! +------------------------------------------------------------------+
+    !
+    ! In the following section variables for CICE dynamics are imported 
+    !
+    ! 
+    !                   +---------------------------+
+    !                   |       Ocean Import        |
+    !                   +---------------------------+ 
+    ! Zonal surface current velocity -------------------------------------
     call state_getimport(importState, 'So_u', output=aflds, index=1, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    
+    ! Merid surface current velocity -------------------------------------
     call state_getimport(importState, 'So_v', output=aflds, index=2, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
-    call state_getimport(importState, 'Sa_u', output=aflds, index=3, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    call state_getimport(importState, 'Sa_v', output=aflds, index=4, rc=rc)
-    if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
+    
+    ! Zonal ocean surface tilt -----------------------------------------------
     call state_getimport(importState, 'So_dhdx', output=aflds, index=5, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    ! Merid ocean surface tilt -----------------------------------------------
     call state_getimport(importState, 'So_dhdy', output=aflds, index=6, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    
+    ! Mixed layer depth -----------------------------------------------------
+     call state_getimport(importState, 'So_hmix', output=aflds, index=7, &
+          areacor=med2mod_areacor, rc=rc)
+     if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+ 
+    !                   +---------------------------+
+    !                   |       Amtos Import        |
+    !                   +---------------------------+ 
+    ! Zonal atmospheric velocity ---------------------------------------------
+    call state_getimport(importState, 'Sa_u10m', output=aflds, index=3, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    ! Merid atmospheric velocity ---------------------------------------------
+    call state_getimport(importState, 'Sa_v10m', output=aflds, index=4, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
 
+    
     if (.not.prescribed_ice) then
        call t_startf ('cice_imp_halo')
        call ice_HaloUpdate(aflds, halo_info, field_loc_center, field_type_vector)
        call t_stopf ('cice_imp_halo')
     endif
-
+  
+    !                   +---------------------------+
+    !                   | Transfer to interal vars  |
+    !                   +---------------------------+
+    
     !$OMP PARALLEL DO PRIVATE(iblk,i,j)
     do iblk = 1, nblocks
        do j = 1,ny_block
@@ -692,11 +788,12 @@ contains
              vatm (i,j,iblk)   = aflds(i,j, 4,iblk)
              ss_tltx(i,j,iblk) = aflds(i,j, 5,iblk)
              ss_tlty(i,j,iblk) = aflds(i,j, 6,iblk)
-          enddo  !i
+             hmix(i,j,iblk)    = aflds(i,j, 7,iblk)
+         enddo  !i
        enddo     !j
     enddo        !iblk
     !$OMP END PARALLEL DO
-
+    
     deallocate(aflds)
 
     !-------------------------------------------------------
@@ -794,10 +891,10 @@ contains
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     end if
 
-    !-----------------------------------------------------------------
-    ! rotate zonal/meridional vectors to local coordinates
-    ! compute data derived quantities
-    !-----------------------------------------------------------------
+    !+---------------------------------------------------------------+
+    !|  rotate zonal/meridional vectors to local coordinates         |
+    !|  compute data derived quantities                              |
+    !+---------------------------------------------------------------+
 
     ! Vector fields come in on T grid, but are oriented geographically
     ! need to rotate to pop-grid FIRST using ANGLET
@@ -812,31 +909,44 @@ contains
 
        do j = 1,ny_block
           do i = 1,nx_block
-             ! ocean
+             ! Ocean
              workx      = uocn  (i,j,iblk) ! currents, m/s
              worky      = vocn  (i,j,iblk)
 
-             uocn(i,j,iblk) = workx*cos(ANGLET(i,j,iblk)) & ! rotate to align with model i,j
-                            + worky*sin(ANGLET(i,j,iblk))
-             vocn(i,j,iblk) = worky*cos(ANGLET(i,j,iblk)) &
-                            - workx*sin(ANGLET(i,j,iblk))
+             uocn(i,j,iblk)    = workx*cos(ANGLET(i,j,iblk)) & ! rotate to align with model i,j
+                                +worky*sin(ANGLET(i,j,iblk))
+             vocn(i,j,iblk)    = worky*cos(ANGLET(i,j,iblk)) &
+                                -workx*sin(ANGLET(i,j,iblk))
 
-             workx      = ss_tltx  (i,j,iblk)           ! sea sfc tilt, m/m
-             worky      = ss_tlty  (i,j,iblk)
+             workx             = ss_tltx  (i,j,iblk)           ! sea sfc tilt, m/m
+             worky             = ss_tlty  (i,j,iblk)
 
              ss_tltx(i,j,iblk) = workx*cos(ANGLET(i,j,iblk)) & ! rotate to align with model i,j
-                               + worky*sin(ANGLET(i,j,iblk))
+                                +worky*sin(ANGLET(i,j,iblk))
              ss_tlty(i,j,iblk) = worky*cos(ANGLET(i,j,iblk)) &
-                               - workx*sin(ANGLET(i,j,iblk))
+                                -workx*sin(ANGLET(i,j,iblk))
+             
+             ! Thermodynamic import
+             sst(i,j,iblk)    =  sst(i,j,iblk) - Tffresh
+             
+             sss(i,j,iblk)    = max(sss(i,j,iblk),c0)
+             
+             ! Assume water is well mixed to 50m
+             hmix (i,j,iblk)  = max(min(bathymetry(i,j,iblk),real(50.0)),real(0.0))  
+             
+             ! Freezing and melting potential: This is calcaulted after SOM updates temperature need for ice formation.
+             frzmlt(i,j,iblk) = (-real(0.0543)*sss(i,j,iblk)-sst(i,j,iblk))*cprho*hmix(i,j,iblk)/dt 
+             frzmlt(i,j,iblk) = min(max(frzmlt(i,j,iblk),real(-1000.0)),real(1000.0)) 
 
-             sst(i,j,iblk) = sst(i,j,iblk) - Tffresh       ! sea sfc temp (C)
-
-             sss(i,j,iblk) = max(sss(i,j,iblk),c0)
-
-          enddo
+             ! After calcuting potential temperature is reset to freezing point.
+             if (sst(i,j,iblk) < -real(0.0543)*sss(i,j,iblk)) then 
+                     sst(i,j,iblk)    = -real(0.0543)*sss(i,j,iblk)
+             endif
+         enddo
        enddo
     end do
-
+    !$OMP END PARALLEL DO
+    call ESMF_LogWrite("DONE! ", ESMF_LOGMSG_INFO)
 #ifdef CESMCOUPLED
     ! Use shr_frz_mod for this
     do iblk = 1, nblocks
@@ -1051,9 +1161,9 @@ contains
        end do
     endif
 
-    !---------------------------------
-    ! Create the export state
-    !---------------------------------
+    !+------------------------+
+    !|Create the export state |
+    !+------------------------+
 
     ! Zero out fields with tmask for proper coupler accumulation in ice free areas
     if (first_call .or. .not.single_column) then
@@ -1089,9 +1199,9 @@ contains
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     end if
 
-    ! ----
-    ! States from ice
-    ! ----
+    ! +---------------+
+    ! |States from ice|
+    ! +---------------+
 
     ! surface temperature of ice covered portion (degK)
     call state_setexport(exportState, 'Si_t', input=Tsrf , lmask=tmask, ifrac=ailohi, rc=rc)
@@ -1151,9 +1261,9 @@ contains
     call state_setexport(exportState, 'Si_snowh' , input=tempfld , lmask=tmask, ifrac=ailohi, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    ! ------
-    ! optional floe diameter and ice thickness to wave
-    ! ------
+    ! +-------------------------------------------------+
+    ! |optional floe diameter and ice thickness to wave |
+    ! +-------------------------------------------------+
 
     ! Sea ice thickness (m)
     if (State_FldChk(exportState, 'Si_thick')) then
@@ -1167,9 +1277,9 @@ contains
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     end if
 
-    ! ------
-    ! ice/atm fluxes computed by ice
-    ! ------
+    ! +------------------------------+
+    ! |ice/atm fluxes computed by ice|
+    ! +------------------------------+
 
     ! Zonal air/ice stress
     call state_setexport(exportState, 'Faii_taux' , input=tauxa, lmask=tmask, ifrac=ailohi, &
@@ -1206,9 +1316,9 @@ contains
          areacor=mod2med_areacor, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    ! ------
-    ! ice/ocn fluxes computed by ice
-    ! ------
+    ! +------------------------------+
+    ! |ice/ocn fluxes computed by ice|
+    ! +------------------------------+
 
     ! flux of shortwave through ice to ocean
     call state_setexport(exportState, 'Fioi_swpen' , input=fswthru, lmask=tmask, ifrac=ailohi, &
@@ -1259,10 +1369,10 @@ contains
     call state_setexport(exportState, 'Fioi_tauy' , input=tauyo, lmask=tmask, ifrac=ailohi, &
          areacor=mod2med_areacor, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
-    ! ------
-    ! optional aerosol fluxes to ocean
-    ! ------
+  
+    ! +--------------------------------+
+    ! |Optional aerosol fluxes to ocean|
+    ! +--------------------------------+
 
     ! hydrophobic bc
     if (State_FldChk(exportState, 'Fioi_bcpho')) then
@@ -1285,9 +1395,9 @@ contains
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     end if
 
-    ! ------
-    ! optional water isotope fluxes to ocean
-    ! ------
+    ! +--------------------------------------+
+    ! |Optional water isotope fluxes to ocean|
+    ! +--------------------------------------+
 
     if (State_FldChk(exportState, 'Fioi_meltw_wiso')) then
        ! 16O => ungridded_index=1
@@ -1304,10 +1414,10 @@ contains
             lmask=tmask, ifrac=ailohi, ungridded_index=2, areacor=mod2med_areacor, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     end if
-
-    ! ------
-    ! optional water isotope fluxes to atmospehre
-    ! ------
+     
+    ! +-------------------------------------------+
+    ! |Optional water isotope fluxes to atmospehre|
+    ! +-------------------------------------------+
 
     if (State_FldChk(exportState, 'Faii_evap_wiso')) then
        !  Isotope evap to atm
@@ -1332,10 +1442,10 @@ contains
             lmask=tmask, ifrac=ailohi, ungridded_index=2, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     endif
-
-    ! ------
-    ! optional short wave penetration to ocean ice category
-    ! ------
+      
+    ! +------------------------------------------------------+
+    ! | Optional short wave penetration to ocean ice category|
+    ! +------------------------------------------------------+
 
     ! ice fraction by category
     if ( State_FldChk(exportState, 'Si_ifrac_n') .and. &
@@ -1353,6 +1463,24 @@ contains
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
        end do
     end if
+
+    ! Snow volume
+    call state_setexport(exportState, 'Si_uvel' , input=uvel, lmask=tmask, ifrac=ailohi, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    ! Ice volume
+    call state_setexport(exportState, 'Si_vvel' , input=vvel, lmask=tmask, ifrac=ailohi, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    ! Ice freezing melting potential. How much energy is removed from water column due to ice formation?
+
+    call state_setexport(exportState, 'Si_frzmlt' , input=frzmlt, lmask=tmask, ifrac=ailohi, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+
+    ! Ice-ocean Drag coeffecient
+    call state_setexport(exportState, 'Si_CdnIO' , input=Cdn_ocn , lmask=tmask, ifrac=ailohi, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
   end subroutine ice_export
 
