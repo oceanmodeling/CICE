@@ -149,7 +149,6 @@ contains
      call ice_HaloRestore_init ! restored boundary conditions
     !endif
     
-    call ESMF_LogWrite("(cice_init2) DEBUG 1 ", ESMF_LOGMSG_INFO)
     call icepack_query_parameters(skl_bgc_out=skl_bgc, z_tracers_out=z_tracers, &
          wave_spec_out=wave_spec, snw_aging_table_out=snw_aging_table)
     call icepack_warnings_flush(nu_diag)
@@ -210,11 +209,9 @@ contains
 
     call init_flux_atm        ! initialize atmosphere fluxes sent to coupler
     call init_flux_ocn        ! initialize ocean fluxes sent to coupler
-    call ESMF_LogWrite("(cice_init2) DEBUG 8 ", ESMF_LOGMSG_INFO)
     !if (my_task == master_task) then
         if (sea_ice_time_bry) call get_forcing_bry      ! sea-ice boundary data                      |
     !endif
-    call ESMF_LogWrite("(cice_init2) DEBUG 9 ", ESMF_LOGMSG_INFO)
 
     call dealloc_grid         ! deallocate temporary grid arrays
 
