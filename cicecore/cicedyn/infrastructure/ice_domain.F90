@@ -67,6 +67,9 @@
                          ! Should be used with "open" ew and ns boundaries
       halo_dynbundle , & ! if true, bundle halo update in dynamics
       landblockelim      ! if true, land block elimination is on
+   
+   logical (kind=log_kind), public :: &
+      coastal_coupled     ! allow for subcycling of CICE during coupling (ESMF/NUOPC) 
 
 !-----------------------------------------------------------------------
 !
@@ -144,7 +147,8 @@
                          maskhalo_bound,    &
                          add_mpi_barriers,  &
                          debug_blocks, &
-                         sea_ice_time_bry
+                         sea_ice_time_bry, &
+                         coastal_coupled
 
 !----------------------------------------------------------------------
 !
@@ -166,6 +170,8 @@
    sea_ice_time_bry  = .false.     ! if true, use time-varying sea-ice boundary files
                                    ! Should be used with "open" ew and ns boundaries
    
+   coastal_coupled   = .false.     ! allow for subcycling of CICE during coupling (ESMF/NUOPC)
+
    add_mpi_barriers  = .false.     ! if true, throttle communication
    debug_blocks      = .false.     ! if true, print verbose block information
    max_blocks        = -1          ! max number of blocks per processor

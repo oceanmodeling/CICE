@@ -82,26 +82,14 @@
       ! timestep loop
       !--------------------------------------------------------------------
 
-
       call ice_timer_start(timer_couple)  ! atm/ocn coupling
-
 
       call advance_timestep()  ! advance timestep and update calendar data
 
       if (z_tracers) call get_atm_bgc                   ! biogeochemistry
 
-!      call init_flux_atm  ! Initialize atmosphere fluxes sent to coupler
-!      call init_flux_ocn  ! initialize ocean fluxes sent to coupler
-      !if (my_task == master_task) then      
-       if (sea_ice_time_bry) call get_forcing_bry
-      !endif
+      if (sea_ice_time_bry) call get_forcing_bry
 
-!     call get_forcing_atmo     ! atmospheric forcing from data
-!     call get_forcing_ocn(dt)  ! ocean forcing from data
-
-      !if (restore_ice) call ice_HaloRestore
-      !endif
-      !call ice_step
 
       call init_flux_atm  ! Initialize atmosphere fluxes sent to coupler
       call init_flux_ocn  ! initialize ocean fluxes sent to coupler
@@ -198,9 +186,9 @@
       !-----------------------------------------------------------------
       ! restoring on grid boundaries
       !-----------------------------------------------------------------
-      !if (my_task == master_task) then
-      !   if (restore_ice) call ice_HaloRestore
-      !endif
+      if (not(sea_ice_time_bry)) then
+        if (restore_ice) call ice_HaloRestore
+      endif
       !-----------------------------------------------------------------
       ! initialize diagnostics and save initial state values
       !-----------------------------------------------------------------
@@ -273,11 +261,13 @@
 
          call ice_timer_stop(timer_thermo) ! thermodynamics
          call ice_timer_stop(timer_column) ! column physics
-      !----------------------------------------------------------------- 
-      ! restoring on grid boundaries befor dynamics 
-      !----------------------------------------------------------------- 
-         if (restore_ice) call ice_HaloRestore
 
+      !----------------------------------------------------------------- 
+      ! restoring on grid boundaries befor dynamics (BC time varying)
+      !----------------------------------------------------------------- 
+      if (sea_ice_time_bry) then  
+         if (restore_ice) call ice_HaloRestore
+      endif
 
 
       !-----------------------------------------------------------------
@@ -422,7 +412,6 @@
                end if
             end do
          end if
-
       end subroutine ice_step
 
 !=======================================================================
@@ -508,8 +497,7 @@
 
          call ice_timer_start(timer_couple,iblk)   ! atm/ocn coupling
 
-         !if (oceanmixed_ice) &                    Joseph Smith: This has been move to the beginning of the run sequence
-         !       call ocean_mixed_layer (dt,iblk) ! ocean surface fluxes and sst
+         if (oceanmixed_ice) call ocean_mixed_layer (dt,iblk) ! ocean surface fluxes and sst
              
       !-----------------------------------------------------------------
       ! Aggregate albedos
