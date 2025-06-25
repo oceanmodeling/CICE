@@ -254,6 +254,13 @@ contains
     call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_vvel'  )
     call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_frzmlt')
 
+    !Ice ocean drag coef.
+    !Added here as it better to send current veloicty and ice velocity to calculate
+    !Ice-to-ocean stress on the ocean model side. NOTE This is not need when coupling
+    !at ever time step; 
+    call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_CdnIO')
+    
+
 
     ! the following are advertised but might not be connected if they are not present
     ! in the cmeps esmFldsExchange_xxx_mod.F90 that is model specific
@@ -1413,6 +1420,23 @@ contains
        end do
     end if
 
+    ! Snow volume
+    call state_setexport(exportState, 'Si_uvel' , input=uvel, lmask=tmask, ifrac=ailohi, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    ! Ice volume
+    call state_setexport(exportState, 'Si_vvel' , input=vvel, lmask=tmask, ifrac=ailohi, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    ! Ice freezing melting potential.
+
+    call state_setexport(exportState, 'Si_frzmlt' , input=frzmlt, lmask=tmask, ifrac=ailohi, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+
+    ! Ice-ocean Drag coeffecient
+    call state_setexport(exportState, 'Si_CdnIO' , input=Cdn_ocn , lmask=tmask, ifrac=ailohi, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
   end subroutine ice_export
 
   !===============================================================================
