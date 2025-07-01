@@ -22,7 +22,7 @@
       use ice_boundary, only: ice_HaloUpdate
       use ice_blocks, only: nx_block, ny_block
       use ice_domain, only: halo_info
-      use ice_domain_size, only: ncat, max_blocks, nx_global,nilyr,nslyr, ny_global, nfreq
+      use ice_domain_size, only: ncat, max_blocks, nx_global, ny_global, nfreq,nilyr,nslyr
       use ice_communicate, only: my_task, master_task
       use ice_calendar, only: istep, istep1, &
                               msec, mday, mmonth, myear, yday, daycal, dayyr, &
@@ -31,8 +31,8 @@
       use ice_exit, only: abort_ice
       use ice_read_write, only: ice_open, ice_read, ice_check_nc, &
                                 ice_get_ncvarsize, ice_read_vec_nc, &
-                                ice_open_nc, ice_read_nc, ice_close_nc, ice_read_nc_bry,& 
-                                snow_read_nc_bry_4D
+                                ice_open_nc, ice_read_nc, ice_close_nc, &
+                                ice_read_nc_bry, snow_read_nc_bry_4D
       use ice_timers, only: ice_timer_start, ice_timer_stop, timer_readwrite, &
                             timer_bound, timer_forcing
       use ice_arrays_column, only: oceanmixed_ice, restore_bgc
@@ -56,7 +56,7 @@
                 read_clim_data, read_clim_data_nc, &
                 interpolate_data, interp_coeff_monthly, &
                 read_data_nc_point, interp_coeff, &
-                init_snowtable,& !Pedro stuff begins
+                init_snowtable,& 
                 init_forcing_bry, get_forcing_bry,&
                 read_bry_ice_data_nc_2D, &
                 read_bry_ice_data_nc_3D, &
@@ -85,7 +85,7 @@
             sst_file, &
             sss_file, &
          sublim_file, &
-           bry_file , & !Pedro changes
+           bry_file , &
            snow_file
 
       character (char_len_long), dimension(:), allocatable, public :: &  ! input data file names
