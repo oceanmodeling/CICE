@@ -45,9 +45,8 @@
       use icepack_intfc, only: icepack_warnings_flush, icepack_warnings_aborted
       use icepack_intfc, only: icepack_sea_freezing_temperature
       use icepack_intfc, only: icepack_init_wave, icepack_init_parameters
-      use icepack_intfc, only: icepack_query_tracer_indices, icepack_query_parameters
-      
-      use ice_domain, only:sea_ice_time_bry
+      use icepack_intfc, only: icepack_query_tracer_indices, icepack_query_parameters 
+      use ice_domain,    only: sea_ice_time_bry
 
       implicit none
       private
@@ -85,8 +84,8 @@
             sst_file, &
             sss_file, &
          sublim_file, &
-           bry_file , &
-           snow_file
+           snow_file, &
+            bry_file 
 
       character (char_len_long), dimension(:), allocatable, public :: &  ! input data file names
         topmelt_file, &
@@ -142,16 +141,16 @@
          ice_data_type     , & ! 'latsst', 'box2001', 'boxslotcyl', etc
          ice_data_conc     , & ! 'p5','p8','p9','c1','parabolic', 'box2001', etc
          ice_data_dist     , & ! 'box2001','gauss', 'uniform', etc
-         precip_units      ,&    ! 'mm_per_month', 'mm_per_sec', 'mks','m_per_sec'
+         precip_units      , & ! 'mm_per_month', 'mm_per_sec', 'mks','m_per_sec'
          sea_ice_bry
       logical (kind=log_kind), public :: &
          rotate_wind      ! rotate wind/stress to computational grid from true north directed
 
       character(char_len_long), public :: &
-         atm_data_dir , &   ! top directory for atmospheric data
-         ocn_data_dir , &   ! top directory for ocean data
-         wave_spec_dir, &   ! dir name for wave spectrum
-         wave_spec_file,&   ! file name for wave spectrum
+         atm_data_dir , & ! top directory for atmospheric data
+         ocn_data_dir , & ! top directory for ocean data
+         wave_spec_dir, & ! dir name for wave spectrum
+         wave_spec_file,& ! file name for wave spectrum
          oceanmixed_file,&  ! file name for ocean forcing data
          sea_ice_bry_dir    ! Location of the boundary condition data
 
@@ -207,7 +206,6 @@
       logical (kind=log_kind), parameter :: &
          local_debug = .false.   ! local debug flag
        
-
       !Arrays to store sea-ice boundary values per ice category
       !Boundary arrays 
       real (kind=dbl_kind), dimension(:,:,:,:), allocatable, public :: &
@@ -298,7 +296,7 @@
            ocn_frc_m(nx_block,ny_block,  max_blocks,nfld,12), & ! ocn data for 12 months
         topmelt_file(ncat), &
         botmelt_file(ncat), &
-        wave_spectrum_data(nx_block,ny_block,nfreq,2,max_blocks),&
+        wave_spectrum_data(nx_block,ny_block,nfreq,2,max_blocks), &
         stat=ierr)
         
         if (sea_ice_time_bry) then !Allocate boundary arrays
