@@ -18,7 +18,6 @@ module ice_comp_nuopc
   use ice_constants      , only : ice_init_constants, c0
   use ice_shr_methods    , only : chkerr, state_setscalar, state_getscalar, state_diagnose, alarmInit
   use ice_shr_methods    , only : get_component_instance, state_flddebug
-  
   use ice_import_export  , only : ice_import, ice_export, ice_advertise_fields, ice_realize_fields
   use ice_domain_size    , only : nx_global, ny_global
   use ice_grid           , only : grid_format, init_grid2
@@ -1016,22 +1015,22 @@ contains
     type(ESMF_State)           :: importState, exportState
     character(ESMF_MAXSTR)     :: cvalue
     real(dbl_kind)             :: eccen, obliqr, lambm0, mvelpp
-    integer                    :: shrlogunit       ! original log unit
-    integer                    :: k,n              ! index
-    logical                    :: stop_now         ! .true. ==> stop at the end of this run phase
-    integer                    :: ymd              ! Current date (YYYYMMDD)
-    integer                    :: tod              ! Current time of day (sec)
-    integer                    :: curr_ymd         ! Current date (YYYYMMDD)
-    integer                    :: curr_tod         ! Current time of day (s)
-    integer                    :: yy,mm,dd         ! year, month, day, time of day
-    integer                    :: ymd_sync         ! Sync date (YYYYMMDD)
-    integer                    :: yr_sync          ! Sync current year
-    integer                    :: mon_sync         ! Sync current month
-    integer                    :: day_sync         ! Sync current day
-    integer                    :: tod_sync         ! Sync current time of day (sec)
-    integer                    :: second_coupling  ! number of seconds between tod_sync and tod
-    integer                    :: i             ! for loop index
-    integer                    :: num_cice_steps   ! number of steps to advance CICE in coupling interval
+    integer                    :: shrlogunit ! original log unit
+    integer                    :: k,n        ! index
+    logical                    :: stop_now   ! .true. ==> stop at the end of this run phase
+    integer                    :: ymd        ! Current date (YYYYMMDD)
+    integer                    :: tod        ! Current time of day (sec)
+    integer                    :: curr_ymd   ! Current date (YYYYMMDD)
+    integer                    :: curr_tod   ! Current time of day (s)
+    integer                    :: yy,mm,dd   ! year, month, day, time of day
+    integer                    :: ymd_sync   ! Sync date (YYYYMMDD)
+    integer                    :: yr_sync    ! Sync current year
+    integer                    :: mon_sync   ! Sync current month
+    integer                    :: day_sync   ! Sync current day
+    integer                    :: tod_sync   ! Sync current time of day (sec)
+    integer                    :: second_coupling  ! Number of seconds between tod_sync and tod
+    integer                    :: i                ! For loop index
+    integer                    :: num_cice_steps   ! Number of steps to advance CICE in coupling interval
     character(char_len_long)   :: restart_date
     character(char_len_long)   :: restart_filename
     logical                    :: isPresent, isSet

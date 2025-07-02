@@ -59,19 +59,22 @@
       subroutine input_data
 
       use ice_broadcast, only: broadcast_scalar, broadcast_array
-      use ice_diagnostics, only: diag_file, print_global, print_points, latpnt, lonpnt, &
-                                 debug_model, debug_model_step, debug_model_task, &
-                                 debug_model_i, debug_model_j, debug_model_iblk
+      use ice_diagnostics, only: &
+          diag_file, print_global, print_points, latpnt, lonpnt, &
+          debug_model, debug_model_step, debug_model_task, &
+          debug_model_i, debug_model_j, debug_model_iblk
       use ice_domain, only: close_boundaries, sea_ice_time_bry
-      use ice_domain_size, only: ncat, nilyr, nslyr, nblyr, nfsd, nfreq, &
-                                 n_iso, n_aero, n_zaero, n_algae, &
-                                 n_doc, n_dic, n_don, n_fed, n_fep, &
-                                 max_nstrm
-      use ice_calendar, only: year_init, month_init, day_init, sec_init, &
-                              istep0, histfreq, histfreq_n, histfreq_base, &
-                              dumpfreq, dumpfreq_n, diagfreq, dumpfreq_base, &
-                              npt, dt, ndtd, days_per_year, use_leap_years, &
-                              write_ic, dump_last, npt_unit
+      use ice_domain_size, only: &
+          ncat, nilyr, nslyr, nblyr, nfsd, nfreq, &
+          n_iso, n_aero, n_zaero, n_algae, &
+          n_doc, n_dic, n_don, n_fed, n_fep, &
+          max_nstrm
+      use ice_calendar, only: 
+          year_init, month_init, day_init, sec_init, &
+          istep0, histfreq, histfreq_n, histfreq_base, &
+          dumpfreq, dumpfreq_n, diagfreq, dumpfreq_base, &
+          npt, dt, ndtd, days_per_year, use_leap_years, &
+          write_ic, dump_last, npt_unit
       use ice_arrays_column, only: oceanmixed_ice
       use ice_restart_column, only: &
           restart_age, restart_FY, restart_lvl, &
@@ -1266,7 +1269,6 @@
          endif
          abort_list = trim(abort_list)//":1"
       endif
-
       if (history_format /= 'cdf1'        .and. &
           history_format /= 'cdf2'        .and. &
           history_format /= 'cdf5'        .and. &

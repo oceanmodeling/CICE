@@ -14,11 +14,11 @@
           aicen_bry, vicen_bry, vsnon_bry,    &
           Tsfc_bry, Tinz_bry, Sinz_bry, alvln_bry,vlvln_bry,&
           apondn_bry, hpondn_bry, ipondn_bry,iage_bry, Tsnz_bry, &
-          uvel_bry, vvel_bry !pedrocice 
+          uvel_bry, vvel_bry 
       use ice_state, only: aicen, vicen, vsnon, trcrn, bound_state, &
           aice_init, aice0, aice, vice, vsno, trcr, trcr_depend, &
           uvel, vvel,& 
-          divu,shear,strength! !pedrocice  
+          divu,shear,strength 
           
           
       use icepack_tracers, only: ntrcr,tr_pond_lvl,nbtrcr  
@@ -46,8 +46,7 @@
          vvel_rest 
       !-----------------------------------------------------------------
       ! state of the ice for each category
-      !-----------------------------------------------------------------
-    
+      !----------------------------------------------------------------- 
       real (kind=dbl_kind), dimension (:,:,:,:), allocatable, public :: &
          aicen_rest , & ! concentration of ice
          vicen_rest , & ! volume per unit area of ice          (m)
@@ -104,7 +103,7 @@
 
    if ((ew_boundary_type == 'open' .or. &
         ns_boundary_type == 'open') .and. .not.(restart_ext)) then
-      if (my_task == master_task) write (nu_diag,*) 'ERROR: restart_ext=F and open boundaries'
+      if (my_task == master_task) write (nu_diag,*) ' ERROR: restart_ext=F and open boundaries'
       call abort_ice(error_message=subname//'open boundary and restart_ext=F', &
          file=__FILE__, line=__LINE__)
    endif
@@ -167,10 +166,10 @@
    ! restore to initial ice state
 
 ! the easy way
-!   aicen_rest(:,:,:,:) = c0!aicen(:,:,:,:)
-!   vicen_rest(:,:,:,:) = c0!vicen(:,:,:,:)
-!   vsnon_rest(:,:,:,:) = c0!vsnon(:,:,:,:)
-!   trcrn_rest(:,:,:,:,:) = c0!trcrn(:,:,:,:,:)
+!   aicen_rest(:,:,:,:) = aicen(:,:,:,:)
+!   vicen_rest(:,:,:,:) = vicen(:,:,:,:)
+!   vsnon_rest(:,:,:,:) = vsnon(:,:,:,:)
+!   trcrn_rest(:,:,:,:,:) = trcrn(:,:,:,:,:)
 !   uvel_rest(:,:,:,:)  = c0
 !   vvel_rest(:,:,:,:)  = c0
 ! the more precise way
