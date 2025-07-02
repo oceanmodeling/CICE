@@ -70,8 +70,8 @@
       end interface
 
       interface ice_read_nc
-         module procedure ice_read_nc_xy,     &
-                          ice_read_nc_xyz,    &
+         module procedure ice_read_nc_xy,  &
+                          ice_read_nc_xyz, &
                           !ice_read_nc_xyf, &
                           ice_read_nc_point,  &
                           ice_read_nc_1D,     &

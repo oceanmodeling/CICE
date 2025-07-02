@@ -22,11 +22,11 @@
       use ice_boundary, only: ice_HaloUpdate
       use ice_blocks, only: nx_block, ny_block
       use ice_domain, only: halo_info
-      use ice_domain_size, only: ncat, max_blocks, nx_global, ny_global, nfreq,nilyr,nslyr
+      use ice_domain_size, only: ncat, max_blocks, nx_global, ny_global, nfreq, nilyr, nslyr
       use ice_communicate, only: my_task, master_task
       use ice_calendar, only: istep, istep1, &
-                              msec, mday, mmonth, myear, yday, daycal, dayyr, &
-                              daymo, days_per_year, compute_days_between
+                              msec, mday, mmonth, myear, yday, daycal, &
+                              daymo, days_per_year, compute_days_between, dayyr
       use ice_fileunits, only: nu_diag, nu_forcing
       use ice_exit, only: abort_ice
       use ice_read_write, only: ice_open, ice_read, ice_check_nc, &
@@ -45,7 +45,7 @@
       use icepack_intfc, only: icepack_warnings_flush, icepack_warnings_aborted
       use icepack_intfc, only: icepack_sea_freezing_temperature
       use icepack_intfc, only: icepack_init_wave, icepack_init_parameters
-      use icepack_intfc, only: icepack_query_tracer_indices, icepack_query_parameters 
+      use icepack_intfc, only: icepack_query_tracer_indices, icepack_query_parameters
       use ice_domain,    only: sea_ice_time_bry
 
       implicit none

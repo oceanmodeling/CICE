@@ -146,8 +146,8 @@
                          maskhalo_remap,    &
                          maskhalo_bound,    &
                          add_mpi_barriers,  &
-                         debug_blocks, &
-                         sea_ice_time_bry, &
+                         debug_blocks,      &
+                         sea_ice_time_bry,  &
                          coastal_coupled
 
 !----------------------------------------------------------------------

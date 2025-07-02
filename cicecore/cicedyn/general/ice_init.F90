@@ -69,7 +69,7 @@
           n_iso, n_aero, n_zaero, n_algae, &
           n_doc, n_dic, n_don, n_fed, n_fep, &
           max_nstrm
-      use ice_calendar, only: 
+      use ice_calendar, only: &
           year_init, month_init, day_init, sec_init, &
           istep0, histfreq, histfreq_n, histfreq_base, &
           dumpfreq, dumpfreq_n, diagfreq, dumpfreq_base, &
@@ -1269,6 +1269,7 @@
          endif
          abort_list = trim(abort_list)//":1"
       endif
+
       if (history_format /= 'cdf1'        .and. &
           history_format /= 'cdf2'        .and. &
           history_format /= 'cdf5'        .and. &
