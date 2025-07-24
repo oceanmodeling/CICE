@@ -1030,9 +1030,7 @@ contains
     character(char_len_long)   :: restart_date
     character(char_len_long)   :: restart_filename
     logical                    :: isPresent, isSet
-#ifndef CESMCOUPLED
     logical                    :: write_restartfh
-#endif
     character(len=*),parameter :: subname=trim(modName)//':(ModelAdvance) '
     character(char_len_long)   :: msgString
     !--------------------------------
@@ -1183,9 +1181,11 @@ contains
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
        endif
     endif
-
+    
+#ifndef CESMCOUPLED
     call is_restart_fh(clock, restartfh_info, write_restartfh)
     if (write_restartfh) force_restart_now = .true.
+#endif
 
     !--------------------------------
     ! Unpack import state
@@ -1301,10 +1301,10 @@ contains
     character(len=256)       :: stop_option    ! Stop option units
     integer                  :: stop_n         ! Number until stop interval
     integer                  :: stop_ymd       ! Stop date (YYYYMMDD)
+    integer                  :: dtime
     type(ESMF_ALARM)         :: stop_alarm
     character(len=128)       :: name
     integer                  :: alarmcount
-    integer                  :: dtime
     character(len=*),parameter :: subname=trim(modName)//':(ModelSetRunClock) '
     !--------------------------------
 
