@@ -18,6 +18,7 @@ module ice_comp_nuopc
   use ice_constants      , only : ice_init_constants, c0
   use ice_shr_methods    , only : chkerr, state_setscalar, state_getscalar, state_diagnose, alarmInit
   use ice_shr_methods    , only : get_component_instance, state_flddebug
+
   use ice_import_export  , only : ice_import, ice_export, ice_advertise_fields, ice_realize_fields
   use ice_domain_size    , only : nx_global, ny_global
   use ice_grid           , only : grid_format, init_grid2
@@ -57,8 +58,6 @@ module ice_comp_nuopc
 #ifndef CESMCOUPLED
   use shr_is_restart_fh_mod, only : init_is_restart_fh, is_restart_fh, is_restart_fh_type
 #endif
-
-  use ice_domain , only: coastal_coupled
 
   implicit none
   private
@@ -1028,13 +1027,12 @@ contains
     integer                    :: mon_sync   ! Sync current month
     integer                    :: day_sync   ! Sync current day
     integer                    :: tod_sync   ! Sync current time of day (sec)
-    integer                    :: second_coupling  ! Number of seconds between tod_sync and tod
-    integer                    :: i                ! For loop index
-    integer                    :: num_cice_steps   ! Number of steps to advance CICE in coupling interval
     character(char_len_long)   :: restart_date
     character(char_len_long)   :: restart_filename
     logical                    :: isPresent, isSet
+#ifndef CESMCOUPLED
     logical                    :: write_restartfh
+#endif
     character(len=*),parameter :: subname=trim(modName)//':(ModelAdvance) '
     character(char_len_long)   :: msgString
     !--------------------------------
@@ -1135,19 +1133,18 @@ contains
     call ESMF_TimeGet( currTime, yy=yr_sync, mm=mon_sync, dd=day_sync, s=tod_sync, rc=rc )
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     call ice_cal_ymd2date(yr_sync, mon_sync, day_sync, ymd_sync)
-    
-    if (not(coastal_coupled)) then
-       ! error check
-       if ( (ymd /= ymd_sync) .or. (tod /= tod_sync) ) then
-          if (my_task == master_task) then
-                  write(nu_diag,*)' cice ymd=',ymd     ,'  cice tod= ',tod
-                  write(nu_diag,*)' sync ymd=',ymd_sync,'  sync tod= ',tod_sync
-          endif
-          call ESMF_LogWrite(subname//" CICE clock not in sync with ESMF model clock",ESMF_LOGMSG_ERROR)
-          rc = ESMF_FAILURE
-          return
-       endif
-    endif
+
+    ! error check
+    if ( (ymd /= ymd_sync) .or. (tod /= tod_sync) ) then
+       if (my_task == master_task) then
+          write(nu_diag,*)' cice ymd=',ymd     ,'  cice tod= ',tod
+          write(nu_diag,*)' sync ymd=',ymd_sync,'  sync tod= ',tod_sync
+       end if
+       call ESMF_LogWrite(subname//" CICE clock not in sync with ESMF model clock",ESMF_LOGMSG_ERROR)
+       rc = ESMF_FAILURE
+       return
+    end if
+
     !--------------------------------
     ! Determine if time to write restart
     !--------------------------------
@@ -1217,55 +1214,10 @@ contains
     ! Advance cice and timestep update
     !--------------------------------
 
-    if (not(coastal_coupled)) then
-       
-       call ESMF_LogWrite('PRE CICE_RUN', ESMF_LOGMSG_INFO) 
-       if(profile_memory) call ESMF_VMLogMemInfo("Entering CICE_Run : ") 
-       call CICE_Run()
-       if(profile_memory) call ESMF_VMLogMemInfo("Leaving CICE_Run : ")
-       call ESMF_LogWrite('POST CICE_RUN', ESMF_LOGMSG_INFO)
-            
-    else !Coupled in coastal
-      if (ymd_sync > ymd) then
-         second_coupling = abs((tod_sync + int(86400)) - tod)
-      else
-         second_coupling = abs(tod_sync - tod)
-      endif
-      
-      num_cice_steps = int(second_coupling/dt)
-      
-      if (mod(int(second_coupling),int(dt)) /= 0) then
-         call ESMF_LogWrite('Coupling step cannot be divided by dt, please adjust to avoid lack of steps!', ESMF_LOGMSG_INFO)     
-            write(nu_diag,*)' cice ymd=',ymd     ,'  cice tod= ',tod
-            write(nu_diag,*)' sync ymd=',ymd_sync,'  sync tod= ',tod_sync 
-            write(nu_diag,*)' num_cice_steps=',num_cice_steps
-      end if
-      
-      do i = 1, 1+num_cice_steps-1
-         call ESMF_LogWrite('PRE CICE_RUN', ESMF_LOGMSG_INFO)
-         if(profile_memory) call ESMF_VMLogMemInfo("Entering CICE_Run : ")   
-         call CICE_Run()
-         !it = it + 1
-         if(profile_memory) call ESMF_VMLogMemInfo("Leaving CICE_Run : ")
-         call ESMF_LogWrite('POST CICE_RUN', ESMF_LOGMSG_INFO)
-      end do
-      
-      tod = msec
-      ymd = idate   
-    endif
-    
-    
-    ! error check
-    if ( (ymd /= ymd_sync) .or. (tod /= tod_sync) ) then
-       if (my_task == master_task) then
-          write(nu_diag,*)' cice ymd=',ymd     ,'  cice tod= ',tod
-          write(nu_diag,*)' sync ymd=',ymd_sync,'  sync tod= ',tod_sync
-       end if
-       call ESMF_LogWrite(subname//" CICE clock not in sync with ESMF model clock",ESMF_LOGMSG_ERROR)
-       rc = ESMF_FAILURE
-       return
-    end if
-    
+    if(profile_memory) call ESMF_VMLogMemInfo("Entering CICE_Run : ")
+    call CICE_Run()
+    if(profile_memory) call ESMF_VMLogMemInfo("Leaving CICE_Run : ")
+
     !--------------------------------
     ! Create export state
     !--------------------------------
@@ -1351,10 +1303,12 @@ contains
     character(len=256)       :: stop_option    ! Stop option units
     integer                  :: stop_n         ! Number until stop interval
     integer                  :: stop_ymd       ! Stop date (YYYYMMDD)
-    integer                  :: dtime
     type(ESMF_ALARM)         :: stop_alarm
     character(len=128)       :: name
     integer                  :: alarmcount
+#ifndef CESMCOUPLED
+    integer                  :: dtime
+#endif
     character(len=*),parameter :: subname=trim(modName)//':(ModelSetRunClock) '
     !--------------------------------
 
