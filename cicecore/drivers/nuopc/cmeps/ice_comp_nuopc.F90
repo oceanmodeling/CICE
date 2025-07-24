@@ -1186,7 +1186,6 @@ contains
     call is_restart_fh(clock, restartfh_info, write_restartfh)
     if (write_restartfh) force_restart_now = .true.
 #endif
-    
     !--------------------------------
     ! Unpack import state
     !--------------------------------
