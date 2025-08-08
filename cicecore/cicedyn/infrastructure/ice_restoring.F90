@@ -112,10 +112,10 @@
              vicen_rest(nx_block,ny_block,ncat,max_blocks), &
              vsnon_rest(nx_block,ny_block,ncat,max_blocks), &
              trcrn_rest(nx_block,ny_block,ntrcr,ncat,max_blocks))
-   
    aicen_rest(:,:,:,:) = c0
    vicen_rest(:,:,:,:) = c0
    vsnon_rest(:,:,:,:) = c0 
+   trcrn_rest(:,:,:,:,:) = c0
 
    if (sea_ice_time_bry) then
       allocate (uvel_rest(nx_block,ny_block,max_blocks),&  !pedrocice
@@ -378,11 +378,15 @@
          nt_qsno     , & !
          icells          ! number of cells initialized with ice
 
+      integer (kind=int_kind), dimension(nx_block*ny_block) :: &
+         indxi, indxj    ! compressed indices for cells with restoring
+   
+         
       logical (kind=log_kind) :: &
          tr_brine
 
-      integer (kind=int_kind), dimension(nx_block*ny_block) :: &
-         indxi, indxj    ! compressed indices for cells with restoring
+
+ 
 
       real (kind=dbl_kind) :: &
          Tsfc, hbar, &
@@ -640,9 +644,9 @@
      this_block  ! block info for current block
 
    real (dbl_kind) :: &
-     secday,          &!
-     ctime,           & ! dt/trest
-     slope,cslope,trest_ice 
+     secday,             &!
+     ctime,Ti,slope,cslope,trest_ice               ! dt/trest
+   
    logical(kind=log_kind) :: &
          lsnow, &          ! snow presence: T: has snow, F: no snow
          lice              ! ice presence: T: has ice, F: no ice

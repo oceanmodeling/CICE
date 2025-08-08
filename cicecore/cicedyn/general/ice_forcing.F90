@@ -299,6 +299,8 @@
         wave_spectrum_data(nx_block,ny_block,nfreq,2,max_blocks), &
         stat=ierr)
         
+        if (ierr/=0) call abort_ice('(alloc_forcing): Out of Memory')
+        
         if (sea_ice_time_bry) then !Allocate boundary arrays
            allocate ( &
                 aicen_bry(nx_block,ny_block,ncat,max_blocks), &      
@@ -5959,8 +5961,6 @@
 ! This sub-routine is used to read daily time-varying sea-ice boundary data
 ! It is assumed that data is at zero hours of each day
 ! Therefore, noly on data slot is considered. 
-! authors: Pedro Duarte, Norwegian Polar Institute
-! Modified:Nov 2017 
 
       use ice_calendar, only: timesecs
       use ice_constants, only: field_loc_center, field_type_scalar
@@ -5978,7 +5978,7 @@
            ixm,ixx,ixp , & ! record numbers for neighboring days
            recnum      , & ! record number
            dataloc     , & ! = 1 for data located in middle of time interval
-                           ! = 2 for date located at end of time interval
+                          ! = 2 for date located at end of time interval
            iblk        , & ! block index
            maxrec      , & ! maximum record number
            recslot     ,&    ! spline slot for current record
@@ -5998,8 +5998,10 @@
            data_file               ! data file to be read
       real (kind=dbl_kind) :: secday
       dbug=.false.
-      if (istep1 > check_step) dbug = .true. 
+      if (istep1 > check_step) dbug = .true.  !! debugging
+
      !-------------------------------------------------------------------
+     ! 
      ! daily data located at the end of the 24-hour period. 
      !-------------------------------------------------------------------
       call icepack_query_parameters(secday_out=secday)
@@ -6009,18 +6011,19 @@
       recnum = int(yday)   
 
       ! Compute record numbers for surrounding data (2 on each side)
+
       ixm = -99
       ixx = mod(recnum-1,       maxrec) + 1
       ixp = mod(recnum,         maxrec) + 1
 
       ! Compute interpolation coefficients
       ! If data is located at the end of the time interval, then the
-      ! data value for the current record goes in slot 2
+      !  data value for the current record goes in slot 2
+
       recslot = 2
 
       ! Read
       read1 = .false.
-
       if (istep==1 .or. oldrecnum .ne. recnum) read1 = .true.
       
       ! Save record number for next time step
@@ -6164,7 +6167,21 @@
       
       
       call interpolate_data_n (vlvln_work_bry, vlvln_bry)
-      
+
+!       call file_year_bry (data_file, fyear) ! Ensure correct year-file
+!       fieldname1='apondn_N_bry'
+!       fieldname2='apondn_S_bry'
+!       fieldname3='apondn_W_bry'
+!       fieldname4='apondn_E_bry'
+! 
+!       call read_bry_ice_data_nc_3D(read1, 0, fyear, ixm, ixx, ixp, &
+!                 maxrec, data_file,fieldname1,fieldname2, &
+!                 fieldname3,fieldname4,apondn_work_bry, &
+!                 field_loc_center, field_type_scalar)
+!        
+!       call interp_coeff (recnum, recslot, secday, dataloc)
+!       call interpolate_data_n (apondn_work_bry, apondn_bry)
+
       call file_year_bry (data_file, fyear) ! Ensure correct year-file
       fieldname1='hpondn_N_bry'
       fieldname2='hpondn_S_bry'
@@ -6443,7 +6460,19 @@
       
       call ice_timer_stop(timer_readwrite)  ! reading/writing
       dbug=.false.
-
+! #else
+!       field_data = c0 ! to satisfy intent(out) attribute
+! #endif
+!       if (istep1 == 1) then
+!       open(dbug_var,file='var_debug_step_end.txt',status = 'replace')
+!       write(dbug_var,*) 'istep1  = ', istep1
+!       write(dbug_var,*) 'var_debug at end of read_bry_ice_data_nc_2D for ', fieldname1, fieldname2, fieldname3, fieldname4
+!       write(dbug_var,*) 'size 1,2,3,4  = ', size(field_data,Dim = 1), size(field_data,Dim = 2), size(field_data,Dim = 3), size(field_data,Dim = 4)
+!       write(dbug_var,*) 'field_data 1 max, min,  = ', maxval(field_data(:,:,1,:)),minval(field_data(:,:,1,:))
+!       write(dbug_var,*) 'field_data 2 max, min,  = ', maxval(field_data(:,:,2,:)),minval(field_data(:,:,2,:))
+!       
+!       close(dbug_var)
+!       endif
       end subroutine read_bry_ice_data_nc_2D
 
 !=======================================================================
@@ -6592,11 +6621,13 @@
 
       call ice_timer_stop(timer_readwrite)  ! reading/writing
       dbug=.false.
-      
+! #else
+!       field_data = c0 ! to satisfy intent(out) attribute
+! #endif
       end subroutine read_bry_ice_data_nc_3D
 
 !=======================================================================
-      subroutine read_bry_ice_data_nc_4D (flag, recd, yr, ixm, ixx, ixp, &
+ subroutine read_bry_ice_data_nc_4D (flag, recd, yr, ixm, ixx, ixp, &
                             maxrec, data_file, fieldname1, &
                             fieldname2,fieldname3,fieldname4,&
                             field_data, field_loc, field_type)
@@ -6752,11 +6783,13 @@
 
       call ice_timer_stop(timer_readwrite)  ! reading/writing
       dbug=.false.
-      
+!#else
+!      field_data = c0 ! to satisfy intent(out) attribute
+!#endif
       end subroutine read_bry_ice_data_nc_4D
 !=======================================================================
 
-      subroutine read_bry_snow_data_nc_4D (flag, recd, yr, ixm, ixx, ixp, &
+ subroutine read_bry_snow_data_nc_4D (flag, recd, yr, ixm, ixx, ixp, &
                             maxrec, data_file, fieldname1, &
                             fieldname2,fieldname3,fieldname4,&
                             field_data, field_loc, field_type)
@@ -6811,7 +6844,9 @@
                               ! adjusted at beginning and end of data
          arg              , & ! value of time argument in field_data
          fid                  ! file id for netCDF routines
-      
+!       if (my_task == master_task ) then
+!           write (nu_diag,*) 'Reaching here 4'
+!       end if
       dbug=.false.
       call ice_timer_start(timer_readwrite)  ! reading/writing
 
@@ -6894,7 +6929,9 @@
 
       call ice_timer_stop(timer_readwrite)  ! reading/writing
       dbug=.false.
-      
+!#else
+      !field_data = c0 ! to satisfy intent(out) attribute
+!#endif
       end subroutine read_bry_snow_data_nc_4D
 !=======================================================================
 

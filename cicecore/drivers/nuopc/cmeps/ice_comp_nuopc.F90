@@ -94,7 +94,7 @@ module ice_comp_nuopc
 
   integer                      :: nthrds       ! Number of threads to use in this component
   integer                      :: nu_timer = 6 ! Simple timer log, unused except by UFS
-  integer                      :: dbug = 0
+  integer                      :: dbug = 10
   logical                      :: profile_memory = .false.
   logical                      :: mastertask
   logical                      :: runtimelog = .false.

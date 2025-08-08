@@ -226,6 +226,7 @@
    call broadcast_scalar(maskhalo_dyn,      master_task)
    call broadcast_scalar(maskhalo_remap,    master_task)
    call broadcast_scalar(maskhalo_bound,    master_task)
+   call broadcast_scalar(sea_ice_time_bry,  master_task)
    call broadcast_scalar(add_mpi_barriers,  master_task)
    call broadcast_scalar(debug_blocks,      master_task)
    call broadcast_scalar(max_blocks,        master_task)

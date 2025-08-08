@@ -33,8 +33,8 @@
       private
 
       integer (kind=int_kind), parameter, private :: &
-         bits_per_byte = 8 ! number of bits per byte.
-                           ! used to determine RecSize in ice_open
+           bits_per_byte = 8 ! number of bits per byte.
+                             ! used to determine RecSize in ice_open
 
       public :: ice_open,           &
                 ice_open_ext,       &
@@ -2886,8 +2886,6 @@
            field_loc, &      ! location of field on staggered grid
            field_type        ! type of field (scalar, vector, angle)
 
-      ! local variables
-      ! netCDF file diagnostics:
       integer (kind=int_kind) :: & 
          varid,           & ! variable id
          status,          & ! status output from netcdf routines
@@ -2929,19 +2927,11 @@
          enddo    
       else
          allocate(work_g1(1,1))   ! to save memory
-         work_g1(1,1) = c0;!Array initialized to zero and below 
-         !boundaries are filled with values read from boundary files 
-         !obtaining a square array with zeros all over except along the 
-         !boundaries
+         work_g1(1,1) = c0;
       endif
 
       if (my_task == master_task) then
-         
-        !-------------------------------------------------------------
-        ! Find out ID of required variable and read array
-        !-------------------------------------------------------------
-         
-        !Northern boundary 
+         !Northern boundary 
          status = nf90_inq_varid(fid, trim(varname1), varid) 
          if (status /= nf90_noerr) then
            call abort_ice ( & 
@@ -2950,8 +2940,7 @@
          status = nf90_get_var( fid, varid, work_g1(1:nx,ny), &
                start=(/1,nrec/), & 
                count=(/nx,1/) )     
-         
-        !Southern boundary 
+         !Southern boundary 
          status = nf90_inq_varid(fid, trim(varname2), varid)
          if (status /= nf90_noerr) then
            call abort_ice ( & 
@@ -2960,8 +2949,7 @@
          status = nf90_get_var( fid, varid, work_g1(1:nx,1), &
                start=(/1,nrec/), & 
                count=(/nx,1/) )
-               
-        !Western boundary
+         !Western boundary
          status = nf90_inq_varid(fid, trim(varname3), varid) 
          if (status /= nf90_noerr) then
            call abort_ice ( & 
@@ -2970,8 +2958,7 @@
          status = nf90_get_var( fid, varid, work_g1(1,1:ny), &
                start=(/1,nrec/), & 
                count=(/ny,1/) )
-         
-        !Eastern boundary
+         !Eastern boundary
          status = nf90_inq_varid(fid, trim(varname4), varid)
          if (status /= nf90_noerr) then
            call abort_ice ( & 
@@ -2980,9 +2967,9 @@
          status = nf90_get_var( fid, varid, work_g1(nx,1:ny), &
                start=(/1,nrec/), & 
                count=(/ny,1/) ) 
-      
-        endif                     ! my_task = master_task
+      endif                     ! my_task = master_task
 
+	
     !-------------------------------------------------------------------
     ! Scatter data to individual processors.
     ! NOTE: Ghost cells are not updated unless field_loc is present.
@@ -3084,10 +3071,7 @@
       else
          allocate(work_g1(1,1,ncat))   ! to save memory
          do n = 1, ncat
-            work_g1(1,1,n) = c0;!Array initialized to zero and below 
-           !boundaries are filled with values read from boundary files 
-           !obtaining a square array with zeros all over except along the 
-           !boundaries
+            work_g1(1,1,n) = c0;
          enddo
       endif
 
@@ -3132,11 +3116,8 @@
          status = nf90_get_var( fid, varid, work_g1(nx,1:ny,1:ncat), &
                start=(/1,1,nrec/), & 
                count=(/ny,ncat,1/) ) 
-          
-
 
       endif                     ! my_task = master_task
-
 
 
     !-------------------------------------------------------------------
@@ -3165,7 +3146,6 @@
          endif
       endif
       deallocate(work_g1)
-      
       
       end subroutine ice_read_nc_bry_3D
 !=======================================================================
@@ -3210,7 +3190,6 @@
            field_loc, &      ! location of field on staggered grid
            field_type        ! type of field (scalar, vector, angle)
 
-      ! local variables
       integer (kind=int_kind) :: & 
          varid,           & ! variable id
          status,          & ! status output from netcdf routines
@@ -3259,10 +3238,7 @@
       else
          allocate(work_g1(1,1,1,ncat))   ! to save memory
          do n = 1, ncat
-            work_g1(1,1,1,n) = c0;!Array initialized to zero and below 
-           !boundaries are filled with values read from boundary files 
-           !obtaining a square array with zeros all over except along the 
-           !boundaries
+            work_g1(1,1,1,n) = c0;
          enddo
       endif
 
@@ -3308,9 +3284,7 @@
                start=(/1,1,1,nrec/), & 
                count=(/ny,nilyr,ncat,1/) ) 
           
-
       endif                     ! my_task = master_task
-
 
 
     !-------------------------------------------------------------------
@@ -3389,7 +3363,6 @@
            field_loc, &      ! location of field on staggered grid
            field_type        ! type of field (scalar, vector, angle)
 
-      ! local variables
       integer (kind=int_kind) :: & 
          varid,           & ! variable id
          status,          & ! status output from netcdf routines
@@ -3438,10 +3411,7 @@
       else
          allocate(work_g1(1,1,1,ncat))   ! to save memory
          do n = 1, ncat
-            work_g1(1,1,1,n) = c0;!Array initialized to zero and below 
-         !boundaries are filled with values read from boundary files 
-         !obtaining a square array with zeros all over except along the 
-         !boundaries
+            work_g1(1,1,1,n) = c0;
          enddo
       endif
 
@@ -3488,7 +3458,9 @@
                count=(/ny,nslyr,ncat,1/) ) 
           
 
+
       endif                     ! my_task = master_task
+
 
     !-------------------------------------------------------------------
     ! Scatter data to individual processors.

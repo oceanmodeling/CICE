@@ -200,7 +200,8 @@ contains
 
     call init_flux_atm        ! initialize atmosphere fluxes sent to coupler
     call init_flux_ocn        ! initialize ocean fluxes sent to coupler
-        
+    
+    if (sea_ice_time_bry) call init_forcing_bry    
     if (sea_ice_time_bry) call get_forcing_bry      ! sea-ice boundary data                      |
 
     call dealloc_grid         ! deallocate temporary grid arrays

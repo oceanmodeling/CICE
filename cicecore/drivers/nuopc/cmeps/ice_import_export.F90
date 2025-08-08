@@ -604,10 +604,17 @@ contains
              Tair (i,j,iblk)         = aflds(i,j, 7,iblk)
              Qa   (i,j,iblk)         = aflds(i,j, 8,iblk)
              frzmlt (i,j,iblk)       = aflds(i,j, 9,iblk)
-             swvdr(i,j,iblk)         = aflds(i,j,10,iblk)
-             swidr(i,j,iblk)         = aflds(i,j,11,iblk)
-             swvdf(i,j,iblk)         = aflds(i,j,12,iblk)
-             swidf(i,j,iblk)         = aflds(i,j,13,iblk)
+             if (not(coastal_coupled)) then 
+                swvdr(i,j,iblk)         = aflds(i,j,10,iblk)
+                swidr(i,j,iblk)         = aflds(i,j,11,iblk)
+                swvdf(i,j,iblk)         = aflds(i,j,12,iblk)
+                swidf(i,j,iblk)         = aflds(i,j,13,iblk)
+             else
+                swvdr(i,j,iblk)         = real(0.28)*aflds(i,j,10,iblk)
+                swidr(i,j,iblk)         = real(0.24)*aflds(i,j,10,iblk)
+                swvdf(i,j,iblk)         = real(0.31)*aflds(i,j,10,iblk)
+                swidf(i,j,iblk)         = real(0.17)*aflds(i,j,10,iblk)
+             end if
              flw  (i,j,iblk)         = aflds(i,j,14,iblk)
              frain(i,j,iblk)         = aflds(i,j,15,iblk)
              fsnow(i,j,iblk)         = aflds(i,j,16,iblk)
@@ -884,7 +891,7 @@ contains
                 ! There is a hook above that can be used to passed mld to 
                 ! model.
                 
-                hmix (i,j,iblk)  = max(min(bathymetry(i,j,iblk),real(50.0)),real(0.0))
+                hmix (i,j,iblk)  = max(min(bathymetry(i,j,iblk),real(50.0)),real(5.0))
 
                 ! Freezing and melting potential
      
