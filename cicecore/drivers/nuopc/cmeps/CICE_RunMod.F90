@@ -186,7 +186,8 @@
       !-----------------------------------------------------------------
       ! restoring on grid boundaries
       !-----------------------------------------------------------------
-      if (not(sea_ice_time_bry)) then
+      if (sea_ice_time_bry) then
+      else
         if (restore_ice) call ice_HaloRestore
       endif
       !-----------------------------------------------------------------

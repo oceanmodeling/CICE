@@ -604,20 +604,25 @@ contains
              Tair (i,j,iblk)         = aflds(i,j, 7,iblk)
              Qa   (i,j,iblk)         = aflds(i,j, 8,iblk)
              frzmlt (i,j,iblk)       = aflds(i,j, 9,iblk)
-             if (not(coastal_coupled)) then 
-                swvdr(i,j,iblk)         = aflds(i,j,10,iblk)
-                swidr(i,j,iblk)         = aflds(i,j,11,iblk)
-                swvdf(i,j,iblk)         = aflds(i,j,12,iblk)
-                swidf(i,j,iblk)         = aflds(i,j,13,iblk)
-             else
+             if (coastal_coupled) then 
                 swvdr(i,j,iblk)         = real(0.28)*aflds(i,j,10,iblk)
                 swidr(i,j,iblk)         = real(0.24)*aflds(i,j,10,iblk)
                 swvdf(i,j,iblk)         = real(0.31)*aflds(i,j,10,iblk)
                 swidf(i,j,iblk)         = real(0.17)*aflds(i,j,10,iblk)
+             else
+                swvdr(i,j,iblk)         = aflds(i,j,10,iblk)
+                swidr(i,j,iblk)         = aflds(i,j,11,iblk)
+                swvdf(i,j,iblk)         = aflds(i,j,12,iblk)
+                swidf(i,j,iblk)         = aflds(i,j,13,iblk)
              end if
              flw  (i,j,iblk)         = aflds(i,j,14,iblk)
-             frain(i,j,iblk)         = aflds(i,j,15,iblk)
-             fsnow(i,j,iblk)         = aflds(i,j,16,iblk)
+             if (coastal_coupled) then
+                frain(i,j,iblk)         = abs(max(aflds(i,j,15,iblk),c0))
+                fsnow(i,j,iblk)         = abs(min(aflds(i,j,15,iblk),c0))
+             else
+                frain(i,j,iblk)         = aflds(i,j,15,iblk)
+                fsnow(i,j,iblk)         = aflds(i,j,16,iblk)
+             end if
           end do
        end do
     end do
@@ -891,7 +896,7 @@ contains
                 ! There is a hook above that can be used to passed mld to 
                 ! model.
                 
-                hmix (i,j,iblk)  = max(min(bathymetry(i,j,iblk),real(50.0)),real(5.0))
+                hmix (i,j,iblk)  = max(min(bathymetry(i,j,iblk),real(50.0)),real(1.0))
 
                 ! Freezing and melting potential
      
@@ -909,7 +914,9 @@ contains
           enddo
        enddo
     end do
-
+    !$OMP END PARALLEL DO
+    !write (nu_diag,*) 'max(frzmlt), min(frzmlt)                             :',maxval(frzmlt(:,:,:)),minval(frzmlt(:,:,:))
+    !write (nu_diag,*) '(-real(0.0543)*sss(i,j,iblk)-sst(i,j,iblk)) , max/min:',maxval(-real(0.0543)*sss(:,:,:)-sst(:,:,:)),minval(-real(0.0543)*sss(:,:,:)-sst(:,:,:))
 #ifdef CESMCOUPLED
     ! Use shr_frz_mod for this
     do iblk = 1, nblocks
