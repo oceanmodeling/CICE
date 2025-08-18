@@ -899,14 +899,15 @@ contains
                 hmix (i,j,iblk)  = max(min(bathymetry(i,j,iblk),real(50.0)),real(1.0))
 
                 ! Freezing and melting potential
-     
-                frzmlt(i,j,iblk) = (-real(0.0543)*sss(i,j,iblk)-sst(i,j,iblk))*cprho*hmix(i,j,iblk)/dt
-                frzmlt(i,j,iblk) = min(max(frzmlt(i,j,iblk),real(-1000.0)),real(1000.0))
+                if (oceanmixed_ice) then
+                else !coupled configuration without ocean model active
+                   frzmlt(i,j,iblk) = (-real(0.0543)*sss(i,j,iblk)-sst(i,j,iblk))*cprho*hmix(i,j,iblk)/dt
+                   frzmlt(i,j,iblk) = min(max(frzmlt(i,j,iblk),real(-1000.0)),real(1000.0))
+                   ! After calcuting potential the sst is reset to freezing point.
 
-                ! After calcuting potential the sst is reset to freezing point.
-     
-                if (sst(i,j,iblk) < -real(0.0543)*sss(i,j,iblk)) then
-                        sst(i,j,iblk)    = -real(0.0543)*sss(i,j,iblk)
+                   if (sst(i,j,iblk) < -real(0.0543)*sss(i,j,iblk)) then
+                       sst(i,j,iblk)    = -real(0.0543)*sss(i,j,iblk)
+                   endif
                 endif
 
              endif
@@ -915,8 +916,6 @@ contains
        enddo
     end do
     !$OMP END PARALLEL DO
-    !write (nu_diag,*) 'max(frzmlt), min(frzmlt)                             :',maxval(frzmlt(:,:,:)),minval(frzmlt(:,:,:))
-    !write (nu_diag,*) '(-real(0.0543)*sss(i,j,iblk)-sst(i,j,iblk)) , max/min:',maxval(-real(0.0543)*sss(:,:,:)-sst(:,:,:)),minval(-real(0.0543)*sss(:,:,:)-sst(:,:,:))
 #ifdef CESMCOUPLED
     ! Use shr_frz_mod for this
     do iblk = 1, nblocks
