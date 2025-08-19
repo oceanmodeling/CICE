@@ -7,7 +7,7 @@ module ice_import_export
   use ice_constants      , only : c0, c1, spval_dbl, radius
   use ice_constants      , only : field_loc_center, field_type_scalar, field_type_vector
   use ice_blocks         , only : block, get_block, nx_block, ny_block
-  use ice_domain         , only : nblocks, blocks_ice, halo_info, distrb_info
+  use ice_domain         , only : nblocks, blocks_ice, halo_info, distrb_info, coastal_coupled
   use ice_domain_size    , only : nx_global, ny_global, block_size_x, block_size_y, max_blocks, ncat
   use ice_domain_size    , only : nfreq, nfsd
   use ice_exit           , only : abort_ice
@@ -24,7 +24,7 @@ module ice_import_export
   use ice_flux           , only : fsnow, uocn, vocn, sst, ss_tltx, ss_tlty, frzmlt, hmix
   use ice_flux           , only : send_i2x_per_cat
   use ice_flux           , only : sss, Tf, wind, fsw
-  use ice_arrays_column  , only : floe_rad_c, wave_spectrum, Cdn_ocn
+  use ice_arrays_column  , only : floe_rad_c, wave_spectrum, Cdn_ocn, oceanmixed_ice
   use ice_state          , only : vice, vsno, aice, aicen_init, trcr, trcrn
   use ice_grid           , only : tlon, tlat, tarea, tmask, anglet, hm, bathymetry
   use ice_grid           , only : grid_format
@@ -48,8 +48,6 @@ module ice_import_export
   
   use ice_calendar       , only : dt
   use ice_state          , only : uvel, vvel
-  use ice_domain         , only : coastal_coupled
-  use ice_init           , only : oceanmixed_ice
   use icepack_parameters , only : cprho
   implicit none
   public
