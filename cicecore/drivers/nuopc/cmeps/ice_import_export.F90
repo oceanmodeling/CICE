@@ -48,7 +48,8 @@ module ice_import_export
   
   use ice_calendar       , only : dt
   use ice_state          , only : uvel, vvel
-  use ice_domain         , only : coastal_coupled,oceanmixed_ice
+  use ice_domain         , only : coastal_coupled
+  use ice_init           , only : oceanmixed_ice
   use icepack_parameters , only : cprho
   implicit none
   public
