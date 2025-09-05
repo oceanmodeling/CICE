@@ -47,6 +47,7 @@
       !-----------------------------------------------------------------
       ! state of the ice for each category
       !----------------------------------------------------------------- 
+      
       real (kind=dbl_kind), dimension (:,:,:,:), allocatable, public :: &
          aicen_rest , & ! concentration of ice
          vicen_rest , & ! volume per unit area of ice          (m)
@@ -112,13 +113,14 @@
              vicen_rest(nx_block,ny_block,ncat,max_blocks), &
              vsnon_rest(nx_block,ny_block,ncat,max_blocks), &
              trcrn_rest(nx_block,ny_block,ntrcr,ncat,max_blocks))
+
    aicen_rest(:,:,:,:) = c0
    vicen_rest(:,:,:,:) = c0
-   vsnon_rest(:,:,:,:) = c0 
+   vsnon_rest(:,:,:,:) = c0
    trcrn_rest(:,:,:,:,:) = c0
 
    if (sea_ice_time_bry) then
-      allocate (uvel_rest(nx_block,ny_block,max_blocks),&  !pedrocice
+      allocate (uvel_rest(nx_block,ny_block,max_blocks),&
                 vvel_rest(nx_block,ny_block,max_blocks))
 
       uvel_rest(:,:,:)  = c0
@@ -170,8 +172,6 @@
 !   vicen_rest(:,:,:,:) = vicen(:,:,:,:)
 !   vsnon_rest(:,:,:,:) = vsnon(:,:,:,:)
 !   trcrn_rest(:,:,:,:,:) = trcrn(:,:,:,:,:)
-!   uvel_rest(:,:,:,:)  = c0
-!   vvel_rest(:,:,:,:)  = c0
 ! the more precise way
    !$OMP PARALLEL DO PRIVATE(iblk,ilo,ihi,jlo,jhi,this_block, &
    !$OMP                     i,j,n,nt,ibc,npad)
@@ -385,8 +385,8 @@
       logical (kind=log_kind) :: &
          tr_brine
 
-
- 
+      integer (kind=int_kind), dimension(nx_block*ny_block) :: &
+         indxi, indxj    ! compressed indices for cells with restoring
 
       real (kind=dbl_kind) :: &
          Tsfc, hbar, &
@@ -402,12 +402,6 @@
          qsn             ! snow enthalpy (J/m3)
 
       character(len=*), parameter :: subname = '(set_restore_var)'
-      
-      
-      
-      
-     
-      
       
       call icepack_query_tracer_flags(tr_brine_out=tr_brine)
       call icepack_query_tracer_indices(nt_Tsfc_out=nt_Tsfc, nt_fbri_out=nt_fbri, &
@@ -621,8 +615,6 @@
       use icepack_itd, only: cleanup_itd
       use ice_state, only: trcr_base, nt_strata, n_trcr_strata 
           
-          
-!       use ice_therm_shared, only: heat_capacity
       use ice_arrays_column, only: hin_max, first_ice
       
       use ice_exit, only: abort_ice

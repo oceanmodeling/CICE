@@ -3414,7 +3414,6 @@
       endif
 
       if (my_task == master_task) then
-         write(nu_diag,*) 'Beginning reading boundaries'
         !-------------------------------------------------------------
         ! Find out ID of required variable and read array
         !-------------------------------------------------------------
