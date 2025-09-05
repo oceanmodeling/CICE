@@ -55,6 +55,9 @@ module ice_comp_nuopc
   use ice_mesh_mod       , only : ice_mesh_init_tlon_tlat_area_hm, ice_mesh_create_scolumn
   use ice_prescribed_mod , only : ice_prescribed_init
   use ice_scam           , only : scol_valid, single_column
+  
+  use ice_domain         , only : coastal_coupled
+
 #ifndef CESMCOUPLED
   use shr_is_restart_fh_mod, only : init_is_restart_fh, is_restart_fh, is_restart_fh_type
 #endif
@@ -86,6 +89,9 @@ module ice_comp_nuopc
   real(dbl_kind)               :: orb_mvelp       ! attribute - moving vernal equinox longitude
   real(dbl_kind)               :: orb_eccen       ! attribute and update-  orbital eccentricity
 
+
+  real(dbl_kind)               :: default_depressT = 0.054_dbl_kind ! default value for depressT 
+
   character(len=*) , parameter :: orb_fixed_year       = 'fixed_year'
   character(len=*) , parameter :: orb_variable_year    = 'variable_year'
   character(len=*) , parameter :: orb_fixed_parameters = 'fixed_parameters'
@@ -115,7 +121,6 @@ module ice_comp_nuopc
   character(*), parameter      :: modName =  "(ice_comp_nuopc)"
   character(*), parameter      :: u_FILE_u = &
        __FILE__
-
 !=======================================================================
 contains
 !===============================================================================
@@ -376,38 +381,41 @@ contains
     !----------------------------------------------------------------------------
     ! Initialize constants
     !----------------------------------------------------------------------------
-
+    if (coastal_coupled) then
+       call icepack_init_parameters(depressT_in= 0.0543_dbl_kind,                &
+                                    Tocnfrz_in = -34.0_dbl_kind*0.0543_dbl_kind)
+    endif
 #ifdef CESMCOUPLED
     call ice_init_constants(omega_in=SHR_CONST_OMEGA, radius_in=SHR_CONST_REARTH, &
        spval_dbl_in=SHR_CONST_SPVAL)
 
     ! TODO: get tfrz_option from driver
 
-    call icepack_init_parameters( &
-       secday_in           = SHR_CONST_CDAY,                  &
-       rhoi_in             = SHR_CONST_RHOICE,                &
-       rhow_in             = SHR_CONST_RHOSW,                 &
-       cp_air_in           = SHR_CONST_CPDAIR,                &
-       cp_ice_in           = SHR_CONST_CPICE,                 &
-       cp_ocn_in           = SHR_CONST_CPSW,                  &
-       gravit_in           = SHR_CONST_G,                     &
-       rhofresh_in         = SHR_CONST_RHOFW,                 &
-       zvir_in             = SHR_CONST_ZVIR,                  &
-       vonkar_in           = SHR_CONST_KARMAN,                &
-       cp_wv_in            = SHR_CONST_CPWV,                  &
-       stefan_boltzmann_in = SHR_CONST_STEBOL,                &
-       Tffresh_in          = SHR_CONST_TKFRZ,                 &
-       Lsub_in             = SHR_CONST_LATSUB,                &
-       Lvap_in             = SHR_CONST_LATVAP,                &
-      !Lfresh_in           = SHR_CONST_LATICE,                & ! computed in init_parameters as Lsub-Lvap
-       Timelt_in           = SHR_CONST_TKFRZ-SHR_CONST_TKFRZ, &
-       Tsmelt_in           = SHR_CONST_TKFRZ-SHR_CONST_TKFRZ, &
-       ice_ref_salinity_in = SHR_CONST_ICE_REF_SAL,           &
-       depressT_in         = 0.054_dbl_kind,                  &
-       Tocnfrz_in          = -34.0_dbl_kind*0.054_dbl_kind,   &
-       pi_in               = SHR_CONST_PI,                    &
-       snowpatch_in        = 0.005_dbl_kind)
-
+       call icepack_init_parameters( &
+          secday_in           = SHR_CONST_CDAY,                  &
+          rhoi_in             = SHR_CONST_RHOICE,                &
+          rhow_in             = SHR_CONST_RHOSW,                 &
+          cp_air_in           = SHR_CONST_CPDAIR,                &
+          cp_ice_in           = SHR_CONST_CPICE,                 &
+          cp_ocn_in           = SHR_CONST_CPSW,                  &
+          gravit_in           = SHR_CONST_G,                     &
+          rhofresh_in         = SHR_CONST_RHOFW,                 &
+          zvir_in             = SHR_CONST_ZVIR,                  &
+          vonkar_in           = SHR_CONST_KARMAN,                &
+          cp_wv_in            = SHR_CONST_CPWV,                  &
+          stefan_boltzmann_in = SHR_CONST_STEBOL,                &
+          Tffresh_in          = SHR_CONST_TKFRZ,                 &
+          Lsub_in             = SHR_CONST_LATSUB,                &
+          Lvap_in             = SHR_CONST_LATVAP,                &
+         !Lfresh_in           = SHR_CONST_LATICE,                & ! computed in init_parameters as Lsub-Lvap
+          Timelt_in           = SHR_CONST_TKFRZ-SHR_CONST_TKFRZ, &
+          Tsmelt_in           = SHR_CONST_TKFRZ-SHR_CONST_TKFRZ, &
+          ice_ref_salinity_in = SHR_CONST_ICE_REF_SAL,           &
+          depressT_in         = 0.054_dbl_kind,                &
+          Tocnfrz_in          = -34.0_dbl_kind*0.054_dbl_kind, &
+          pi_in               = SHR_CONST_PI,                    &
+          snowpatch_in        = 0.005_dbl_kind)
+    
     call icepack_warnings_flush(nu_diag)
     if (icepack_warnings_aborted()) call abort_ice(error_message=subname, &
         file=__FILE__, line=__LINE__)

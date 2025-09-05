@@ -181,7 +181,7 @@ contains
     call fldlist_add(fldsToIce_num, fldsToIce, 'So_u'    )
     call fldlist_add(fldsToIce_num, fldsToIce, 'So_v'    )
     call fldlist_add(fldsToIce_num, fldsToIce, 'Fioo_q'  )
-    call fldlist_add(fldsToIce_num, fldsToIce, 'So_hmix' )
+    call fldlist_add(fldsToIce_num, fldsToIce, 'So_h' )
     if (flds_wiso) then
        call fldlist_add(fldsToIce_num, fldsToIce, 'So_roce_wiso', ungridded_lbound=1, ungridded_ubound=3)
     end if
@@ -738,10 +738,10 @@ contains
 
     ! Get mixed layer depth from ocean 
 
-    call state_getimport(importState, 'So_hmix', output=aflds, index=1, rc=rc)
+    call state_getimport(importState, 'So_h', output=aflds, index=1, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-        if (.not.prescribed_ice) then
+    if (.not.prescribed_ice) then
        call t_startf ('cice_imp_halo')
        call ice_HaloUpdate(aflds, halo_info, field_loc_center, field_type_vector)
        call t_stopf ('cice_imp_halo')
@@ -755,7 +755,7 @@ contains
           enddo  !i
        enddo     !j
     enddo        !iblk
-
+    !$OMP END PARALLEL DO
     !-------------------------------------------------------
     ! Get aerosols from mediator
     !-------------------------------------------------------
@@ -895,11 +895,11 @@ contains
                 ! There is a hook above that can be used to passed mld to 
                 ! model.
                 
-                hmix (i,j,iblk)  = max(min(bathymetry(i,j,iblk),real(50.0)),real(1.0))
-
                 ! Freezing and melting potential
                 if (oceanmixed_ice) then
+                  hmix (i,j,iblk)  = max(min(hmix(i,j,iblk),real(50.0)),real(5.0))
                 else !coupled configuration without ocean model active
+                   hmix (i,j,iblk)  = max(min(bathymetry(i,j,iblk),real(50.0)),real(5.0))
                    frzmlt(i,j,iblk) = (-real(0.0543)*sss(i,j,iblk)-sst(i,j,iblk))*cprho*hmix(i,j,iblk)/dt
                    frzmlt(i,j,iblk) = min(max(frzmlt(i,j,iblk),real(-1000.0)),real(1000.0))
                    ! After calcuting potential the sst is reset to freezing point.

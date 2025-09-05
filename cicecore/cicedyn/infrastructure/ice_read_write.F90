@@ -3076,7 +3076,6 @@
       endif
 
       if (my_task == master_task) then
-         write(nu_diag,*) 'Beginning reading boundaries 3D'
         !-------------------------------------------------------------
         ! Find out ID of required variable and read array
         !-------------------------------------------------------------
@@ -3243,7 +3242,6 @@
       endif
 
       if (my_task == master_task) then
-         write(nu_diag,*) 'Beginning reading boundaries 4D'
         !-------------------------------------------------------------
         ! Find out ID of required variable and read array
         !-------------------------------------------------------------

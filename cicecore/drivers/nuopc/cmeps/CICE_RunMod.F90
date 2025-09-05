@@ -122,7 +122,7 @@
       use ice_calendar, only: calendar_sec2hms, write_history, nstreams, histfreq
       use ice_diagnostics, only: init_mass_diags, runtime_diags, debug_model, debug_ice
       use ice_diagnostics_bgc, only: hbrine_diags, bgc_diags
-      use ice_domain, only: halo_info, nblocks
+      use ice_domain, only: halo_info, nblocks, coastal_coupled
       use ice_dyn_eap, only: write_restart_eap
       use ice_dyn_shared, only: kdyn, kridge
       use ice_flux, only: scale_factor, init_history_therm, &
@@ -146,6 +146,7 @@
           timer_hist, timer_readwrite
       use ice_communicate, only: MPI_COMM_ICE, my_task, master_task
       use ice_prescribed_mod
+      use ice_step_mod, only: ocean_mixed_layer
 
       integer (kind=int_kind) :: &
          iblk        , & ! block index
@@ -211,7 +212,25 @@
 
          call ice_timer_start(timer_column)  ! column physics
          call ice_timer_start(timer_thermo)  ! thermodynamics
-
+        
+      !-----------------------------------------------------------------
+      !   Update ocean for nuopc standalone runs
+      !-----------------------------------------------------------------
+         
+         if (coastal_coupled) then
+            if (oceanmixed_ice)  then
+              !$OMP PARALLEL DO PRIVATE(iblk)   
+              do iblk = 1, nblocks
+                   if (ktherm >= 0) then
+                     if (oceanmixed_ice) call  ocean_mixed_layer (dt,iblk)  
+                    !call coupling_prep (iblk)
+                   endif
+               enddo
+               !$OMP END PARALLEL DO
+                call init_flux_atm  ! Initialize atmosphere fluxes sent to coupler
+                call init_flux_ocn  ! initialize ocean fluxes sent to coupler
+            endif
+         endif
          !$OMP PARALLEL DO PRIVATE(iblk)
          do iblk = 1, nblocks
 

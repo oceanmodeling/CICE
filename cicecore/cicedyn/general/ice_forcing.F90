@@ -5997,8 +5997,8 @@
       character (char_len_long) :: &
            data_file               ! data file to be read
       real (kind=dbl_kind) :: secday
+
       dbug=.false.
-      if (istep1 > check_step) dbug = .true.  !! debugging
 
      !-------------------------------------------------------------------
      ! 
@@ -6303,20 +6303,20 @@
 !=======================================================================
 
 
- subroutine read_bry_ice_data_nc_2D (flag, recd, yr, ixm, ixx, ixp, &
+      subroutine read_bry_ice_data_nc_2D (flag, recd, yr, ixm, ixx, ixp, &
                             maxrec, data_file, fieldname1, &
                             fieldname2,fieldname3,fieldname4,&
                             field_data, field_loc, field_type)
         
-! This routine reads daily boundary data
-! If data is at the end of a one-year record, get data from the
-! following year.
-! If no later data exists (end of fyear_final), then
-! let the ixp value equal the last value of the year.
-
-!
-! Adapted by Pedro Duarte, Norwegian Polar Institute from read_data
-! Modified:Nov 2017 
+      ! This routine reads daily boundary data
+      ! If data is at the end of a one-year record, get data from the
+      ! following year.
+      ! If no later data exists (end of fyear_final), then
+      ! let the ixp value equal the last value of the year.
+      
+      !
+      ! Adapted by Pedro Duarte, Norwegian Polar Institute from read_data
+      ! Modified:Nov 2017 
 
       use ice_constants, only: c0
       use ice_timers, only: ice_timer_start, ice_timer_stop, timer_readwrite
@@ -6366,24 +6366,6 @@
       dbug=.false.
       if (istep1 > check_step) dbug = .true.  !! debugging
 
-!jd      debug=.true.
-      debug=.false.
-      if (dbug) debug=.true.
-      !if (my_task == master_task ) then
-      !     
-      !end if
-
-!METNO START
-      if (flag) then
-      if (my_task == master_task ) then
-          write (nu_diag,*) 'flag 2 =',flag
-      end if
-      if (my_task==master_task .and. (dbug)) then
-        write(nu_diag,*) ' ', trim(data_file),' ',&
-             trim(fieldname1),' ',trim(fieldname2),' ',&
-             trim(fieldname3),' ',trim(fieldname4)
-      endif
-!METNO END
       !-----------------------------------------------------------------
       ! Initialize record counters
       ! (n4 will change only at the end of
@@ -6397,626 +6379,507 @@
       ! read data
       !-----------------------------------------------------------------
 
-         ! always read ixx data from data file for current year
+        ! always read ixx data from data file for current year
+        
+        call ice_open_nc (data_file, fid)
+
+        arg = arg + 1
+        nrec = recd + ixx
+
+        call ice_read_nc & 
+             (fid, nrec, fieldname1, fieldname2, &
+              fieldname3, fieldname4, field_data(:,:,arg,:), dbug, &
+              field_loc, field_type)
+
+        if (ixp /= -99) then
+        ! currently in latter half of data interval
+           if (ixx==maxrec) then
+              if (yr < fyear_final) then ! get data from following year
+                 call ice_close_nc(fid)
+                 call file_year_bry (data_file, yr)
+                 call ice_open_nc (data_file, fid)
+              else             ! yr = fyear_final, no more data exists
+                 if (maxrec > 12) then ! extrapolate from ixx
+                    n4 = ixx
+                 else          ! go to beginning of fyear_init
+                    call ice_close_nc(fid)
+                    call file_year_bry (data_file, fyear_init)
+                    call ice_open_nc (data_file, fid)
+
+                 endif
+              endif            ! yr < fyear_final
+           endif               ! ixx = maxrec
+
+           arg = arg + 1
+           nrec = recd + n4
+
+           call ice_read_nc & 
+                (fid, nrec, fieldname1, fieldname2, &
+                 fieldname3, fieldname4, field_data(:,:,arg,:), dbug, &
+                 field_loc, field_type)
+        endif                 ! ixp /= -99
          
-         call ice_open_nc (data_file, fid)
-
-         arg = arg + 1
-         nrec = recd + ixx
-
-!jd
-         if (my_task==master_task .and. (debug)) &
-              write(nu_diag,*) ' ', trim(data_file),' ',&
-              trim(fieldname1),' ',trim(fieldname2),' ',&
-              trim(fieldname3),' ',trim(fieldname4),' ', &
-              ' reading nrec ', nrec, ' into slot ', arg
-!jd
-
-
-	
-
-         call ice_read_nc & 
-              (fid, nrec, fieldname1, fieldname2, &
-               fieldname3, fieldname4, field_data(:,:,arg,:), dbug, &
-               field_loc, field_type)
-
-         if (ixp /= -99) then
-         ! currently in latter half of data interval
-            if (ixx==maxrec) then
-               if (yr < fyear_final) then ! get data from following year
-                  call ice_close_nc(fid)
-                  call file_year_bry (data_file, yr)
-                  call ice_open_nc (data_file, fid)
-               else             ! yr = fyear_final, no more data exists
-                  if (maxrec > 12) then ! extrapolate from ixx
-                     n4 = ixx
-                  else          ! go to beginning of fyear_init
-                     call ice_close_nc(fid)
-                     call file_year_bry (data_file, fyear_init)
-                     call ice_open_nc (data_file, fid)
-
-                  endif
-               endif            ! yr < fyear_final
-            endif               ! ixx = maxrec
-
-            arg = arg + 1
-            nrec = recd + n4
-
-!jd
-           if (my_task==master_task .and. (debug)) &
-                write(nu_diag,*) ' ', trim(data_file),' ',&
-                trim(fieldname1),' ',trim(fieldname2),' ',&
-                trim(fieldname3),' ',trim(fieldname4),' ',&
-                ' reading nrec 2D', nrec, ' into slot ', arg
-!jd
-
-            call ice_read_nc & 
-                 (fid, nrec, fieldname1, fieldname2, &
-                  fieldname3, fieldname4, field_data(:,:,arg,:), dbug, &
-                  field_loc, field_type)
-         endif                 ! ixp /= -99
-	  
-      endif                     ! flag
-      
-      call ice_timer_stop(timer_readwrite)  ! reading/writing
-      dbug=.false.
-! #else
-!       field_data = c0 ! to satisfy intent(out) attribute
-! #endif
-!       if (istep1 == 1) then
-!       open(dbug_var,file='var_debug_step_end.txt',status = 'replace')
-!       write(dbug_var,*) 'istep1  = ', istep1
-!       write(dbug_var,*) 'var_debug at end of read_bry_ice_data_nc_2D for ', fieldname1, fieldname2, fieldname3, fieldname4
-!       write(dbug_var,*) 'size 1,2,3,4  = ', size(field_data,Dim = 1), size(field_data,Dim = 2), size(field_data,Dim = 3), size(field_data,Dim = 4)
-!       write(dbug_var,*) 'field_data 1 max, min,  = ', maxval(field_data(:,:,1,:)),minval(field_data(:,:,1,:))
-!       write(dbug_var,*) 'field_data 2 max, min,  = ', maxval(field_data(:,:,2,:)),minval(field_data(:,:,2,:))
-!       
-!       close(dbug_var)
-!       endif
-      end subroutine read_bry_ice_data_nc_2D
+     
+     call ice_timer_stop(timer_readwrite)  ! reading/writing
+     dbug=.false.
+     
+     end subroutine read_bry_ice_data_nc_2D
 
 !=======================================================================
-      subroutine read_bry_ice_data_nc_3D (flag, recd, yr, ixm, ixx, ixp, &
-                            maxrec, data_file, fieldname1, &
-                            fieldname2,fieldname3,fieldname4,&
-                            field_data, field_loc, field_type)
-        
-! This routine reads daily boundary data
-! If data is at the end of a one-year record, get data from the
-! following year.
-! If no later data exists (end of fyear_final), then
-! let the ixp value equal the last value of the year.
-!
-! Adapted by Pedro Duarte, Norwegian Polar Institute from read_data
-! Modified:Nov 2017 
+     subroutine read_bry_ice_data_nc_3D (flag, recd, yr, ixm, ixx, ixp, &
+                           maxrec, data_file, fieldname1, &
+                           fieldname2,fieldname3,fieldname4,&
+                           field_data, field_loc, field_type)
+       
+     ! This routine reads daily boundary data
+     ! If data is at the end of a one-year record, get data from the
+     ! following year.
+     ! If no later data exists (end of fyear_final), then
+     ! let the ixp value equal the last value of the year.
+     !
+     ! Adapted by Pedro Duarte, Norwegian Polar Institute from read_data
+     ! Modified:Nov 2017 
 
-      use ice_constants, only: c0
-      use ice_timers, only: ice_timer_start, ice_timer_stop, timer_readwrite
+     use ice_constants, only: c0
+     use ice_timers, only: ice_timer_start, ice_timer_stop, timer_readwrite
 
-      logical (kind=log_kind), intent(in) :: flag
+     logical (kind=log_kind), intent(in) :: flag
 
-      integer (kind=int_kind), intent(in) :: &
-         recd                , & ! baseline record number
-         yr                  , & ! year of forcing data
-         ixm, ixx, ixp       , & ! record numbers of 3 data values
-                                 ! relative to recd
-         maxrec                  ! maximum record value
+     integer (kind=int_kind), intent(in) :: &
+        recd                , & ! baseline record number
+        yr                  , & ! year of forcing data
+        ixm, ixx, ixp       , & ! record numbers of 3 data values
+                                ! relative to recd
+        maxrec                  ! maximum record value
 
-      character (char_len_long) :: &
-         data_file               ! data file to be read
+     character (char_len_long) :: &
+        data_file               ! data file to be read
 
-      character (char_len), intent(in) :: &
-         fieldname1, &               ! field name in netCDF file
-         fieldname2, &  
-         fieldname3, &  
-         fieldname4  
- 
-      integer (kind=int_kind), intent(in) :: &
-           field_loc, &      ! location of field on staggered grid
-           field_type        ! type of field (scalar, vector, angle)
-           
+     character (char_len), intent(in) :: &
+        fieldname1, &               ! field name in netCDF file
+        fieldname2, &  
+        fieldname3, &  
+        fieldname4  
 
-      real (kind=dbl_kind), dimension(nx_block,ny_block,ncat,2,max_blocks), &
-         intent(out) :: &
-         field_data              ! 2 values needed for interpolation
+     integer (kind=int_kind), intent(in) :: &
+          field_loc, &      ! location of field on staggered grid
+          field_type        ! type of field (scalar, vector, angle)
+          
 
-      ! local variables
+     real (kind=dbl_kind), dimension(nx_block,ny_block,ncat,2,max_blocks), &
+        intent(out) :: &
+        field_data              ! 2 values needed for interpolation
 
-      logical (kind=log_kind) :: debug, dbug
+     ! local variables
+
+     logical (kind=log_kind) :: debug, dbug
 ! #ifdef ncdf 
-      integer (kind=int_kind) :: &
-         nrec             , & ! record number to read
-         n4               , & ! like ixp, but
-                              ! adjusted at beginning and end of data
-         arg              , & ! value of time argument in field_data
-         fid                  ! file id for netCDF routines
-      
-          !write (nu_diag,*) 'Reaching here 2'
-      
-      call ice_timer_start(timer_readwrite)  ! reading/writing
-      dbug=.false.
-      if (istep1 > check_step) dbug = .true.  !! debugging
+     integer (kind=int_kind) :: &
+        nrec             , & ! record number to read
+        n4               , & ! like ixp, but
+                             ! adjusted at beginning and end of data
+        arg              , & ! value of time argument in field_data
+        fid                  ! file id for netCDF routines
+     
+     
+     call ice_timer_start(timer_readwrite)  ! reading/writing
+     dbug=.false.
+     if (istep1 > check_step) dbug = .true.  !! debugging
 
-!jd      debug=.true.
-      debug=.false.
-      if (dbug) debug=.true.
-      !if (my_task == master_task ) then
-      !     write (nu_diag,*) 'flag =',flag
-      !end if
+     !-----------------------------------------------------------------
+     ! Initialize record counters
+     ! (n4 will change only at the end of
+     !  a forcing cycle.)
+     !-----------------------------------------------------------------
+        n4 = ixp
+        arg = 0
 
-!METNO START
-      if (flag) then
-      if (my_task == master_task ) then
-          write (nu_diag,*) 'flag 2 =',flag
-      end if
-      if (my_task==master_task .and. (dbug)) then
-        write(nu_diag,*) ' ', trim(data_file),' ',&
-             trim(fieldname1),' ',trim(fieldname2),' ',&
-             trim(fieldname3),' ',trim(fieldname4)
-      endif
-!METNO END
-      !-----------------------------------------------------------------
-      ! Initialize record counters
-      ! (n4 will change only at the end of
-      !  a forcing cycle.)
-      !-----------------------------------------------------------------
-         n4 = ixp
-         arg = 0
+     !-----------------------------------------------------------------
+     ! read data
+     !-----------------------------------------------------------------
 
-      !-----------------------------------------------------------------
-      ! read data
-      !-----------------------------------------------------------------
+        ! always read ixx data from data file for current year
+        
+        call ice_open_nc (data_file, fid)
 
-         ! always read ixx data from data file for current year
-         
-         call ice_open_nc (data_file, fid)
+        arg = arg + 1
+        nrec = recd + ixx
 
-         arg = arg + 1
-         nrec = recd + ixx
+        call ice_read_nc & 
+             (fid, nrec, fieldname1, fieldname2, &
+              fieldname3, fieldname4, field_data(:,:,:,arg,:), dbug, &
+              field_loc, field_type)
 
-         call ice_read_nc & 
-              (fid, nrec, fieldname1, fieldname2, &
-               fieldname3, fieldname4, field_data(:,:,:,arg,:), dbug, &
-               field_loc, field_type)
+        if (ixp /= -99) then
+        ! currently in latter half of data interval
+           if (ixx==maxrec) then
+              if (yr < fyear_final) then ! get data from following year
+                 call ice_close_nc(fid)
+                 call file_year_bry (data_file, yr+1)
+                 call ice_open_nc (data_file, fid)
+              else             ! yr = fyear_final, no more data exists
+                 if (maxrec > 12) then ! extrapolate from ixx
+                    n4 = ixx
+                 else          ! go to beginning of fyear_init
+                    call ice_close_nc(fid)
+                    call file_year_bry (data_file, fyear_init)
+                    call ice_open_nc (data_file, fid)
 
-         if (ixp /= -99) then
-         ! currently in latter half of data interval
-            if (ixx==maxrec) then
-               if (yr < fyear_final) then ! get data from following year
-                  call ice_close_nc(fid)
-                  call file_year_bry (data_file, yr+1)
-                  call ice_open_nc (data_file, fid)
-               else             ! yr = fyear_final, no more data exists
-                  if (maxrec > 12) then ! extrapolate from ixx
-                     n4 = ixx
-                  else          ! go to beginning of fyear_init
-                     call ice_close_nc(fid)
-                     call file_year_bry (data_file, fyear_init)
-                     call ice_open_nc (data_file, fid)
+                 endif
+              endif            ! yr < fyear_final
+           endif               ! ixx = maxrec
 
-                  endif
-               endif            ! yr < fyear_final
-            endif               ! ixx = maxrec
+           arg = arg + 1
+           nrec = recd + n4
 
-            arg = arg + 1
-            nrec = recd + n4
 
-!jd
-            if (my_task==master_task .and. (debug)) &
-                 write(nu_diag,*) ' ', trim(data_file),' ',&
-                 trim(fieldname1),' ',trim(fieldname2),' ',&
-                 trim(fieldname3),' ',trim(fieldname4),' ',&
-                 ' reading nrec ', nrec, ' into slot ', arg
-!jd
+           call ice_read_nc & 
+                (fid, nrec, fieldname1, fieldname2, &
+                 fieldname3, fieldname4, field_data(:,:,:,arg,:), dbug, &
+                 field_loc, field_type)
+        endif                  ! ixp /= -99
 
-            call ice_read_nc & 
-                 (fid, nrec, fieldname1, fieldname2, &
-                  fieldname3, fieldname4, field_data(:,:,:,arg,:), dbug, &
-                  field_loc, field_type)
-         endif                  ! ixp /= -99
+        call ice_close_nc(fid)
 
-         call ice_close_nc(fid)
 
-      endif                     ! flag
+     call ice_timer_stop(timer_readwrite)  ! reading/writing
+     dbug=.false.
 
-      call ice_timer_stop(timer_readwrite)  ! reading/writing
-      dbug=.false.
-! #else
-!       field_data = c0 ! to satisfy intent(out) attribute
-! #endif
-      end subroutine read_bry_ice_data_nc_3D
+     end subroutine read_bry_ice_data_nc_3D
 
 !=======================================================================
- subroutine read_bry_ice_data_nc_4D (flag, recd, yr, ixm, ixx, ixp, &
-                            maxrec, data_file, fieldname1, &
-                            fieldname2,fieldname3,fieldname4,&
-                            field_data, field_loc, field_type)
-        
-! This routine reads daily boundary data
-! If data is at the end of a one-year record, get data from the
-! following year.
-! If no later data exists (end of fyear_final), then
-! let the ixp value equal the last value of the year.
+     subroutine read_bry_ice_data_nc_4D (flag, recd, yr, ixm, ixx, ixp, &
+                                maxrec, data_file, fieldname1, &
+                                fieldname2,fieldname3,fieldname4,&
+                                field_data, field_loc, field_type)
+            
+     ! This routine reads daily boundary data
+     ! If data is at the end of a one-year record, get data from the
+     ! following year.
+     ! If no later data exists (end of fyear_final), then
+     ! let the ixp value equal the last value of the year.
+     
+     !
+     ! Adapted by Pedro Duarte, Norwegian Polar Institute from read_data
+     ! Modified:Nov 2017 
 
-!
-! Adapted by Pedro Duarte, Norwegian Polar Institute from read_data
-! Modified:Nov 2017 
+     use ice_constants, only: c0
+     use ice_timers, only: ice_timer_start, ice_timer_stop, timer_readwrite
 
-      use ice_constants, only: c0
-      use ice_timers, only: ice_timer_start, ice_timer_stop, timer_readwrite
+     logical (kind=log_kind), intent(in) :: flag
 
-      logical (kind=log_kind), intent(in) :: flag
+     integer (kind=int_kind), intent(in) :: &
+        recd                , & ! baseline record number
+        yr                  , & ! year of forcing data
+        ixm, ixx, ixp       , & ! record numbers of 3 data values
+                                ! relative to recd
+        maxrec                  ! maximum record value
 
-      integer (kind=int_kind), intent(in) :: &
-         recd                , & ! baseline record number
-         yr                  , & ! year of forcing data
-         ixm, ixx, ixp       , & ! record numbers of 3 data values
-                                 ! relative to recd
-         maxrec                  ! maximum record value
+     character (char_len_long) :: &
+        data_file               ! data file to be read
 
-      character (char_len_long) :: &
-         data_file               ! data file to be read
-
-      character (char_len), intent(in) :: &
-         fieldname1, &               ! field name in netCDF file
-         fieldname2, &  
-         fieldname3, &  
-         fieldname4  
+     character (char_len), intent(in) :: &
+        fieldname1, &               ! field name in netCDF file
+        fieldname2, &  
+        fieldname3, &  
+        fieldname4  
  
-      integer (kind=int_kind), intent(in) :: &
-           field_loc, &      ! location of field on staggered grid
-           field_type        ! type of field (scalar, vector, angle)
-           
+     integer (kind=int_kind), intent(in) :: &
+          field_loc, &      ! location of field on staggered grid
+          field_type        ! type of field (scalar, vector, angle)
+          
 
-      real (kind=dbl_kind), dimension(nx_block,ny_block,nilyr,ncat,2,max_blocks), &
-         intent(out) :: &
-         field_data              ! 2 values needed for interpolation
+     real (kind=dbl_kind), dimension(nx_block,ny_block,nilyr,ncat,2,max_blocks), &
+        intent(out) :: &
+        field_data              ! 2 values needed for interpolation
 
-      ! local variables
+     ! local variables
 
-      logical ::debug, dbug
+     logical ::debug, dbug
 
 !#ifdef ncdf 
-      integer (kind=int_kind) :: &
-         nrec             , & ! record number to read
-         n4               , & ! like ixp, but
-                              ! adjusted at beginning and end of data
-         arg              , & ! value of time argument in field_data
-         fid                  ! file id for netCDF routines
+     integer (kind=int_kind) :: &
+        nrec             , & ! record number to read
+        n4               , & ! like ixp, but
+                             ! adjusted at beginning and end of data
+        arg              , & ! value of time argument in field_data
+        fid                  ! file id for netCDF routines
 
-!       if (my_task == master_task ) then
-!           write (nu_diag,*) 'Reaching here 3'
-!       end if
-      call ice_timer_start(timer_readwrite)  ! reading/writing
-      dbug=.false.
-      if (istep1 > check_step) dbug = .true.  !! debugging
+     call ice_timer_start(timer_readwrite)  ! reading/writing
+     dbug=.false.
+     debug=.false.
 
-!jd      debug=.true.
-      debug=.false.
-      if (dbug) debug=.true.
-      !if (my_task == master_task ) then
-      !     write (nu_diag,*) 'flag =',flag
-      !end if
+     !-----------------------------------------------------------------
+     ! Initialize record counters
+     ! (n4 will change only at the end of
+     !  a forcing cycle.)
+     !-----------------------------------------------------------------
 
-!METNO START
-      if (flag) then
-      if (my_task == master_task ) then
-          write (nu_diag,*) 'flag 2 =',flag
-      end if
-      if (my_task==master_task .and. (dbug)) then
-        write(nu_diag,*) ' ', trim(data_file),' ',&
-             trim(fieldname1),' ',trim(fieldname2),' ',&
-             trim(fieldname3),' ',trim(fieldname4)
-      endif
-!METNO END
-      !-----------------------------------------------------------------
-      ! Initialize record counters
-      ! (n4 will change only at the end of
-      !  a forcing cycle.)
-      !-----------------------------------------------------------------
+        n4 = ixp
+        arg = 0
 
-         n4 = ixp
-         arg = 0
+     !-----------------------------------------------------------------
+     ! read data
+     !-----------------------------------------------------------------
 
-      !-----------------------------------------------------------------
-      ! read data
-      !-----------------------------------------------------------------
-
-         ! always read ixx data from data file for current year
-         
-         call ice_open_nc (data_file, fid)
-
-         arg = arg + 1
-         nrec = recd + ixx
-
-!jd
-         if (my_task==master_task .and. (debug)) &
-              write(nu_diag,*) ' ', trim(data_file),' ',&
-              trim(fieldname1),' ',trim(fieldname2),' ',&
-              trim(fieldname3),' ',trim(fieldname4),' ', &
-              ' reading nrec ', nrec, ' into slot ', arg
-!jd
-         call ice_read_nc & 
-              (fid, nrec, fieldname1, fieldname2, &
-               fieldname3, fieldname4, field_data(:,:,:,:,arg,:), dbug, &
-               field_loc, field_type)
-
-         if (ixp /= -99) then
-         ! currently in latter half of data interval
-            if (ixx==maxrec) then
-               if (yr < fyear_final) then ! get data from following year
-                  call ice_close_nc(fid)
-                  call file_year_bry (data_file, yr+1)
-                  call ice_open_nc (data_file, fid)
-               else             ! yr = fyear_final, no more data exists
-                  if (maxrec > 12) then ! extrapolate from ixx
-                     n4 = ixx
-                  else          ! go to beginning of fyear_init
-                     call ice_close_nc(fid)
-                     call file_year_bry (data_file, fyear_init)
-                     call ice_open_nc (data_file, fid)
-
-                  endif
-               endif            ! yr < fyear_final
-            endif               ! ixx = maxrec
-
-            arg = arg + 1
-            nrec = recd + n4
-
-!jd
-           if (my_task==master_task .and. (debug)) &
-                write(nu_diag,*) ' ', trim(data_file),' ',&
-                trim(fieldname1),' ',trim(fieldname2),' ',&
-                trim(fieldname3),' ',trim(fieldname4),' ',&
-                ' reading nrec 4D', nrec, ' into slot ', arg
-!jd
-	
-            call ice_read_nc & 
-                 (fid, nrec, fieldname1, fieldname2, &
-                  fieldname3, fieldname4, field_data(:,:,:,:,arg,:), dbug, &
-                  field_loc, field_type)
-         endif                  ! ixp /= -99
-
-         call ice_close_nc(fid)
-
-      endif                     ! flag
-
-      call ice_timer_stop(timer_readwrite)  ! reading/writing
-      dbug=.false.
-!#else
-!      field_data = c0 ! to satisfy intent(out) attribute
-!#endif
-      end subroutine read_bry_ice_data_nc_4D
-!=======================================================================
-
- subroutine read_bry_snow_data_nc_4D (flag, recd, yr, ixm, ixx, ixp, &
-                            maxrec, data_file, fieldname1, &
-                            fieldname2,fieldname3,fieldname4,&
-                            field_data, field_loc, field_type)
+        ! always read ixx data from data file for current year
         
-! This routine reads daily boundary data
-! If data is at the end of a one-year record, get data from the
-! following year.
-! If no later data exists (end of fyear_final), then
-! let the ixp value equal the last value of the year.
+        call ice_open_nc (data_file, fid)
 
-!
-! Adapted by Pedro Duarte, Norwegian Polar Institute from read_data
-! Modified:Nov 2018 
+        arg = arg + 1
+        nrec = recd + ixx
 
-      use ice_constants, only: c0
-      use ice_timers, only: ice_timer_start, ice_timer_stop, timer_readwrite
+        call ice_read_nc & 
+             (fid, nrec, fieldname1, fieldname2, &
+              fieldname3, fieldname4, field_data(:,:,:,:,arg,:), dbug, &
+              field_loc, field_type)
 
-      logical (kind=log_kind), intent(in) :: flag
+        if (ixp /= -99) then
+        ! currently in latter half of data interval
+           if (ixx==maxrec) then
+              if (yr < fyear_final) then ! get data from following year
+                 call ice_close_nc(fid)
+                 call file_year_bry (data_file, yr+1)
+                 call ice_open_nc (data_file, fid)
+              else             ! yr = fyear_final, no more data exists
+                 if (maxrec > 12) then ! extrapolate from ixx
+                    n4 = ixx
+                 else          ! go to beginning of fyear_init
+                    call ice_close_nc(fid)
+                    call file_year_bry (data_file, fyear_init)
+                    call ice_open_nc (data_file, fid)
 
-      integer (kind=int_kind), intent(in) :: &
-         recd                , & ! baseline record number
-         yr                  , & ! year of forcing data
-         ixm, ixx, ixp       , & ! record numbers of 3 data values
-                                 ! relative to recd
-         maxrec                  ! maximum record value
+                 endif
+              endif            ! yr < fyear_final
+           endif               ! ixx = maxrec
 
-      character (char_len_long) :: &
-         data_file               ! data file to be read
+           arg = arg + 1
+           nrec = recd + n4
 
-      character (char_len), intent(in) :: &
-         fieldname1, &               ! field name in netCDF file
-         fieldname2, &  
-         fieldname3, &  
-         fieldname4  
+           call ice_read_nc & 
+                (fid, nrec, fieldname1, fieldname2, &
+                 fieldname3, fieldname4, field_data(:,:,:,:,arg,:), dbug, &
+                 field_loc, field_type)
+        endif                  ! ixp /= -99
+
+        call ice_close_nc(fid)
+
+
+     call ice_timer_stop(timer_readwrite)  ! reading/writing
+     dbug=.false.
+     end subroutine read_bry_ice_data_nc_4D
+
+ !=======================================================================
+
+     subroutine read_bry_snow_data_nc_4D (flag, recd, yr, ixm, ixx, ixp, &
+                           maxrec, data_file, fieldname1, &
+                           fieldname2,fieldname3,fieldname4,&
+                           field_data, field_loc, field_type)
+       
+     ! This routine reads daily boundary data
+     ! If data is at the end of a one-year record, get data from the
+     ! following year.
+     ! If no later data exists (end of fyear_final), then
+     ! let the ixp value equal the last value of the year.
+     
+     !
+     ! Adapted by Pedro Duarte, Norwegian Polar Institute from read_data
+     ! Modified:Nov 2018 
+
+     use ice_constants, only: c0
+     use ice_timers, only: ice_timer_start, ice_timer_stop, timer_readwrite
+
+     logical (kind=log_kind), intent(in) :: flag
+
+     integer (kind=int_kind), intent(in) :: &
+        recd                , & ! baseline record number
+        yr                  , & ! year of forcing data
+        ixm, ixx, ixp       , & ! record numbers of 3 data values
+                                ! relative to recd
+        maxrec                  ! maximum record value
+
+     character (char_len_long) :: &
+        data_file               ! data file to be read
+
+     character (char_len), intent(in) :: &
+        fieldname1, &               ! field name in netCDF file
+        fieldname2, &  
+        fieldname3, &  
+        fieldname4  
  
-      integer (kind=int_kind), intent(in) :: &
-           field_loc, &      ! location of field on staggered grid
-           field_type        ! type of field (scalar, vector, angle)
-           
+     integer (kind=int_kind), intent(in) :: &
+          field_loc, &      ! location of field on staggered grid
+          field_type        ! type of field (scalar, vector, angle)
+          
 
-      real (kind=dbl_kind), dimension(nx_block,ny_block,nslyr,ncat,2,max_blocks), &
-         intent(out) :: &
-         field_data              ! 2 values needed for interpolation
+     real (kind=dbl_kind), dimension(nx_block,ny_block,nslyr,ncat,2,max_blocks), &
+        intent(out) :: &
+        field_data              ! 2 values needed for interpolation
 
-      ! local variables
+     ! local variables
 
-      logical ::debug,dbug
+     logical ::debug,dbug
 
-      integer (kind=int_kind) :: &
-         nrec             , & ! record number to read
-         n4               , & ! like ixp, but
-                              ! adjusted at beginning and end of data
-         arg              , & ! value of time argument in field_data
-         fid                  ! file id for netCDF routines
-!       if (my_task == master_task ) then
-!           write (nu_diag,*) 'Reaching here 4'
-!       end if
-      dbug=.false.
-      call ice_timer_start(timer_readwrite)  ! reading/writing
+     integer (kind=int_kind) :: &
+        nrec             , & ! record number to read
+        n4               , & ! like ixp, but
+                             ! adjusted at beginning and end of data
+        arg              , & ! value of time argument in field_data
+        fid                  ! file id for netCDF routines
 
-      debug=.false.
+     call ice_timer_start(timer_readwrite)  ! reading/writing
+     
+     dbug =.false.
+     debug=.false.
 
-!METNO START
-      if (flag) then
-      if (my_task == master_task .and. (dbug)) then
-          write (nu_diag,*) 'flag 2 =',flag
-      end if
-      if (my_task==master_task) then
-        write(nu_diag,*) ' ', trim(data_file),' ',&
-             trim(fieldname1),' ',trim(fieldname2),' ',&
-             trim(fieldname3),' ',trim(fieldname4)
-      endif
-!METNO END
-      !-----------------------------------------------------------------
-      ! Initialize record counters
-      ! (n4 will change only at the end of
-      !  a forcing cycle.)
-      !-----------------------------------------------------------------
+     !-----------------------------------------------------------------
+     ! Initialize record counters
+     ! (n4 will change only at the end of
+     !  a forcing cycle.)
+     !-----------------------------------------------------------------
 
-         n4 = ixp
-         arg = 0
+        n4 = ixp
+        arg = 0
 
-      !-----------------------------------------------------------------
-      ! read data
-      !-----------------------------------------------------------------
+     !-----------------------------------------------------------------
+     ! read data
+     !-----------------------------------------------------------------
 
-         ! always read ixx data from data file for current year
-         
-         call ice_open_nc (data_file, fid)
+        ! always read ixx data from data file for current year
+        
+        call ice_open_nc (data_file, fid)
 
-         arg = arg + 1
-         nrec = recd + ixx
+        arg = arg + 1
+        nrec = recd + ixx
 
-!jd
-         if (my_task==master_task .and. (dbug)) &
-              write(nu_diag,*) ' ', trim(data_file),' ',&
-              trim(fieldname1),' ',trim(fieldname2),' ',&
-              trim(fieldname3),' ',trim(fieldname4),' ', &
-              ' reading nrec ', nrec, ' into slot ', arg
-!jd
-         call snow_read_nc_bry_4D & 
-              (fid, nrec, fieldname1, fieldname2, &
-               fieldname3, fieldname4, field_data(:,:,:,:,arg,:), debug, &
-               field_loc, field_type)
+        call snow_read_nc_bry_4D & 
+             (fid, nrec, fieldname1, fieldname2, &
+              fieldname3, fieldname4, field_data(:,:,:,:,arg,:), debug, &
+              field_loc, field_type)
 
-         if (ixp /= -99) then
-         ! currently in latter half of data interval
-            if (ixx==maxrec) then
-               if (yr < fyear_final) then ! get data from following year
-                  call ice_close_nc(fid)
-                  call file_year_bry (data_file, yr+1)
-                  call ice_open_nc (data_file, fid)
-               else             ! yr = fyear_final, no more data exists
-                  if (maxrec > 12) then ! extrapolate from ixx
-                     n4 = ixx
-                  else          ! go to beginning of fyear_init
-                     call ice_close_nc(fid)
-                     call file_year_bry (data_file, fyear_init)
-                     call ice_open_nc (data_file, fid)
+        if (ixp /= -99) then
+        ! currently in latter half of data interval
+           if (ixx==maxrec) then
+              if (yr < fyear_final) then ! get data from following year
+                 call ice_close_nc(fid)
+                 call file_year_bry (data_file, yr+1)
+                 call ice_open_nc (data_file, fid)
+              else             ! yr = fyear_final, no more data exists
+                 if (maxrec > 12) then ! extrapolate from ixx
+                    n4 = ixx
+                 else          ! go to beginning of fyear_init
+                    call ice_close_nc(fid)
+                    call file_year_bry (data_file, fyear_init)
+                    call ice_open_nc (data_file, fid)
 
-                  endif
-               endif            ! yr < fyear_final
-            endif               ! ixx = maxrec
+                 endif
+              endif            ! yr < fyear_final
+           endif               ! ixx = maxrec
 
-            arg = arg + 1
-            nrec = recd + n4
+           arg = arg + 1
+           nrec = recd + n4
 
-            call snow_read_nc_bry_4D & 
-                 (fid, nrec, fieldname1, fieldname2, &
-                  fieldname3, fieldname4, field_data(:,:,:,:,arg,:), debug, &
-                  field_loc, field_type)
-         endif                  ! ixp /= -99
+           call snow_read_nc_bry_4D & 
+                (fid, nrec, fieldname1, fieldname2, &
+                 fieldname3, fieldname4, field_data(:,:,:,:,arg,:), debug, &
+                 field_loc, field_type)
+        endif                  ! ixp /= -99
 
-         call ice_close_nc(fid)
+        call ice_close_nc(fid)
 
-      endif                     ! flag
 
-      call ice_timer_stop(timer_readwrite)  ! reading/writing
-      dbug=.false.
-!#else
-      !field_data = c0 ! to satisfy intent(out) attribute
-!#endif
-      end subroutine read_bry_snow_data_nc_4D
+     call ice_timer_stop(timer_readwrite)  ! reading/writing
+     dbug=.false.
+     end subroutine read_bry_snow_data_nc_4D
 !=======================================================================
 
-      subroutine interpolate_data_n (field_data, field)
+     subroutine interpolate_data_n (field_data, field)
 
-! Linear interpolation for variables belonging to various ice types
+     ! Linear interpolation for variables belonging to various ice types
+     
+     ! Adapted by Pedro Duarte, Norwegian Polar Institute, 
+     ! from interpolate_data by Elizabeth C. Hunke, LANL
+     ! Modified:Nov 2017 
 
-! author: ! Adapted by Pedro Duarte, Norwegian Polar Institute, from interpolate_data by Elizabeth C. Hunke, LANL
-! Modified:Nov 2017 
+     use ice_domain, only: nblocks
 
-      use ice_domain, only: nblocks
+     real (kind=dbl_kind), dimension(nx_block,ny_block,ncat,2,max_blocks), &
+       intent(in) :: &
+       field_data    ! 2 values used for interpolation
 
-      real (kind=dbl_kind), dimension(nx_block,ny_block,ncat,2,max_blocks), &
-        intent(in) :: &
-        field_data    ! 2 values used for interpolation
+     real (kind=dbl_kind), dimension(nx_block,ny_block,ncat,max_blocks), &
+       intent(out) :: &
+       field         ! interpolated field
 
-      real (kind=dbl_kind), dimension(nx_block,ny_block,ncat,max_blocks), &
-        intent(out) :: &
-        field         ! interpolated field
+     ! local variables
 
-      ! local variables
+     integer (kind=int_kind) :: n,i,j, iblk
 
-      integer (kind=int_kind) :: n,i,j, iblk
+     !$OMP PARALLEL DO PRIVATE(iblk,i,j)
+     do iblk = 1, nblocks
+        do j = 1, ny_block
+        do i = 1, nx_block
+        do n = 1, ncat
+         field(i,j,n,iblk) = c1intp * field_data(i,j,n,1,iblk) &
+       		    + c2intp * field_data(i,j,n,2,iblk)
+        enddo
+        enddo
+        enddo
+     enddo
+     !$OMP END PARALLEL DO
 
-      !$OMP PARALLEL DO PRIVATE(iblk,i,j)
-      do iblk = 1, nblocks
-         do j = 1, ny_block
-         do i = 1, nx_block
-         do n = 1, ncat
-          field(i,j,n,iblk) = c1intp * field_data(i,j,n,1,iblk) &
-			    + c2intp * field_data(i,j,n,2,iblk)
-         enddo
-         enddo
-         enddo
-      enddo
-      !$OMP END PARALLEL DO
-
-      end subroutine interpolate_data_n
+     end subroutine interpolate_data_n
 
 !=======================================================================
 
-      subroutine interpolate_data_n_layer (field_data, field)
+     subroutine interpolate_data_n_layer (field_data, field)
 
-! Linear interpolation for variables belonging to various ice types and layers
+     ! Linear interpolation for variables belonging to various ice types and layers
+     
+     ! Adapted by Pedro Duarte, Norwegian Polar Institute, 
+     ! from interpolate_data by Elizabeth C. Hunke, LANL
+     ! Modified:Nov 2017 
 
-! author: ! Adapted by Pedro Duarte, Norwegian Polar Institute, from interpolate_data by Elizabeth C. Hunke, LANL
-! Modified:Nov 2017 
+     use ice_domain, only: nblocks
 
-      use ice_domain, only: nblocks
+     real (kind=dbl_kind), dimension(nx_block,ny_block,nilyr,ncat,2,max_blocks), &
+       intent(in) :: &
+       field_data    ! 2 values used for interpolation
 
-      real (kind=dbl_kind), dimension(nx_block,ny_block,nilyr,ncat,2,max_blocks), &
-        intent(in) :: &
-        field_data    ! 2 values used for interpolation
+     real (kind=dbl_kind), dimension(nx_block,ny_block,nilyr,ncat,max_blocks), &
+       intent(out) :: &
+       field         ! interpolated field
 
-      real (kind=dbl_kind), dimension(nx_block,ny_block,nilyr,ncat,max_blocks), &
-        intent(out) :: &
-        field         ! interpolated field
+     ! local variables
 
-      ! local variables
+     integer (kind=int_kind) :: n,i,j,k,iblk
 
-      integer (kind=int_kind) :: n,i,j,k,iblk
+     !$OMP PARALLEL DO PRIVATE(iblk,i,j)
+     do iblk = 1, nblocks
+        do k = 1, nilyr
+        do j = 1, ny_block
+        do i = 1, nx_block
+        do n = 1, ncat
+         field(i,j,k,n,iblk) = c1intp * field_data(i,j,k,n,1,iblk) &
+                             + c2intp * field_data(i,j,k,n,2,iblk)
+        enddo
+        enddo
+        enddo
+        enddo
+     enddo
+     !$OMP END PARALLEL DO
 
-      !$OMP PARALLEL DO PRIVATE(iblk,i,j)
-      do iblk = 1, nblocks
-         do k = 1, nilyr
-         do j = 1, ny_block
-         do i = 1, nx_block
-         do n = 1, ncat
-          field(i,j,k,n,iblk) = c1intp * field_data(i,j,k,n,1,iblk) &
-                              + c2intp * field_data(i,j,k,n,2,iblk)
-         enddo
-         enddo
-         enddo
-         enddo
-      enddo
-      !$OMP END PARALLEL DO
+     end subroutine interpolate_data_n_layer
 
-      end subroutine interpolate_data_n_layer
+!=============================================================================
 
-subroutine interpolate_data_n_snow_layer (field_data, field)
+     subroutine interpolate_data_n_snow_layer (field_data, field)
 
-! Linear interpolation for variables belonging to various ice types and layers
-
-! author: ! Adapted by Pedro Duarte, Norwegian Polar Institute, from interpolate_data by Elizabeth C. Hunke, LANL
-! Modified:Nov 2017 
+     ! Linear interpolation for variables belonging to various ice types and layers
+     
+     ! Adapted by Pedro Duarte, Norwegian Polar Institute,
+     ! from interpolate_data by Elizabeth C. Hunke, LANL
+     ! Modified:Nov 2017 
 
       use ice_domain, only: nblocks
 
@@ -7039,7 +6902,7 @@ subroutine interpolate_data_n_snow_layer (field_data, field)
          do i = 1, nx_block
          do n = 1, ncat
             field(i,j,k,n,iblk) = c1intp * field_data(i,j,k,n,1,iblk) &
-				+ c2intp * field_data(i,j,k,n,2,iblk)
+        			+ c2intp * field_data(i,j,k,n,2,iblk)
          enddo
          enddo
          enddo
@@ -7050,6 +6913,6 @@ subroutine interpolate_data_n_snow_layer (field_data, field)
       end subroutine interpolate_data_n_snow_layer
 
 !=======================================================================
-      end module ice_forcing
+end module ice_forcing
 
 !=======================================================================
