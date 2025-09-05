@@ -157,7 +157,7 @@
         phi_c_slow_mode, phi_i_mushy, kalg, atmiter_conv, Pstar, Cstar, &
         sw_frac, sw_dtemp, floediam, hfrazilmin, iceruf, iceruf_ocn, &
         rsnw_fall, rsnw_tmax, rhosnew, rhosmin, rhosmax, Tliquidus_max, &
-        windmin, drhosdwind, snwlvlfac
+        windmin, drhosdwind, snwlvlfac,depressT
 
       integer (kind=int_kind) :: ktherm, kstrength, krdg_partic, krdg_redist, natmiter, &
         kitd, kcatbound, ktransport
@@ -238,7 +238,8 @@
         kitd,           ktherm,          conduct,     ksno,             &
         a_rapid_mode,   Rac_rapid_mode,  aspect_rapid_mode,             &
         dSdt_slow_mode, phi_c_slow_mode, phi_i_mushy,                   &
-        floediam,       hfrazilmin,      Tliquidus_max,   hi_min
+        floediam,       hfrazilmin,      Tliquidus_max,   hi_min,       &
+        depressT
 
       namelist /dynamics_nml/ &
         kdyn,           ndte,           revised_evp,    yield_curve,    &
@@ -566,6 +567,7 @@
       lonpnt(1) =   0._dbl_kind   ! longitude of point 1 (deg)
       latpnt(2) = -65._dbl_kind   ! latitude of diagnostic point 2 (deg)
       lonpnt(2) = -45._dbl_kind   ! longitude of point 2 (deg)
+      depressT  = 0.054_dbl_kind  ! linear freezing point constant (degC/ppt)
 
 #ifndef CESMCOUPLED
       runid   = 'unknown'   ! run ID used in CESM and for machine 'bering'
@@ -1062,6 +1064,7 @@
       call broadcast_scalar(start_andacc,         master_task)
       call broadcast_scalar(use_mean_vrel,        master_task)
       call broadcast_scalar(conduct,              master_task)
+      call broadcast_scalar(depressT,             master_task)
       call broadcast_scalar(R_ice,                master_task)
       call broadcast_scalar(R_pnd,                master_task)
       call broadcast_scalar(R_snw,                master_task)
@@ -2331,8 +2334,11 @@
             tmpstr2 = ' : unknown value'
          endif
          write(nu_diag,1030) ' tfrz_option      = ', trim(tfrz_option),trim(tmpstr2)
+         if (trim(tfrz_option) == 'linear_salt') then
+            write(nu_diag,1009) ' depressT         = ', depressT,' : Tfrz = -depressT*SSS linear freezing temp (degC/ppt)'
+         endif
          if (trim(tfrz_option) == 'constant') then
-            write(nu_diag,1002) ' Tocnfrz          = ', Tocnfrz
+            write(nu_diag,1000) ' Tocnfrz          = ', Tocnfrz
          endif
          write(nu_diag,1030) ' congel_freeze    = ', trim(congel_freeze)
          if (update_ocn_f) then
@@ -2757,7 +2763,7 @@
          rsnw_fall_in=rsnw_fall, rsnw_tmax_in=rsnw_tmax, rhosnew_in=rhosnew, &
          snwlvlfac_in=snwlvlfac, rhosmin_in=rhosmin, rhosmax_in=rhosmax, &
          snwredist_in=snwredist, snwgrain_in=snwgrain, snw_aging_table_in=trim(snw_aging_table), &
-         sw_redist_in=sw_redist, sw_frac_in=sw_frac, sw_dtemp_in=sw_dtemp,sea_ice_time_bry_in=sea_ice_time_bry)
+         sw_redist_in=sw_redist, sw_frac_in=sw_frac, sw_dtemp_in=sw_dtemp,sea_ice_time_bry_in=sea_ice_time_bry,depressT_in=depressT)
       call icepack_init_tracer_flags(tr_iage_in=tr_iage, tr_FY_in=tr_FY, &
          tr_lvl_in=tr_lvl, tr_iso_in=tr_iso, tr_aero_in=tr_aero, &
          tr_fsd_in=tr_fsd, tr_snow_in=tr_snow, tr_pond_in=tr_pond, &

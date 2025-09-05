@@ -377,10 +377,6 @@
          nt_sice     , & !
          nt_qsno     , & !
          icells          ! number of cells initialized with ice
-
-      integer (kind=int_kind), dimension(nx_block*ny_block) :: &
-         indxi, indxj    ! compressed indices for cells with restoring
-   
          
       logical (kind=log_kind) :: &
          tr_brine
