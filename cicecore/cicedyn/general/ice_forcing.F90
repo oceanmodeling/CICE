@@ -5958,9 +5958,9 @@
 !=======================================================================
        subroutine boundary_data
 
-! This sub-routine is used to read daily time-varying sea-ice boundary data
-! It is assumed that data is at zero hours of each day
-! Therefore, noly on data slot is considered. 
+      ! This sub-routine is used to read daily time-varying sea-ice boundary data
+      ! It is assumed that data is at zero hours of each day
+      ! Therefore, only one data slot is considered. 
 
       use ice_calendar, only: timesecs
       use ice_constants, only: field_loc_center, field_type_scalar
@@ -6167,20 +6167,6 @@
       
       
       call interpolate_data_n (vlvln_work_bry, vlvln_bry)
-
-!       call file_year_bry (data_file, fyear) ! Ensure correct year-file
-!       fieldname1='apondn_N_bry'
-!       fieldname2='apondn_S_bry'
-!       fieldname3='apondn_W_bry'
-!       fieldname4='apondn_E_bry'
-! 
-!       call read_bry_ice_data_nc_3D(read1, 0, fyear, ixm, ixx, ixp, &
-!                 maxrec, data_file,fieldname1,fieldname2, &
-!                 fieldname3,fieldname4,apondn_work_bry, &
-!                 field_loc_center, field_type_scalar)
-!        
-!       call interp_coeff (recnum, recslot, secday, dataloc)
-!       call interpolate_data_n (apondn_work_bry, apondn_bry)
 
       call file_year_bry (data_file, fyear) ! Ensure correct year-file
       fieldname1='hpondn_N_bry'

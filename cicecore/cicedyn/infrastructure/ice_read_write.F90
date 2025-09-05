@@ -33,8 +33,8 @@
       private
 
       integer (kind=int_kind), parameter, private :: &
-           bits_per_byte = 8 ! number of bits per byte.
-                             ! used to determine RecSize in ice_open
+          bits_per_byte = 8 ! number of bits per byte.
+                            ! used to determine RecSize in ice_open
 
       public :: ice_open,           &
                 ice_open_ext,       &

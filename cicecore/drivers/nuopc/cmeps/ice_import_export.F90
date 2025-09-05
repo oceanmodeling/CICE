@@ -203,8 +203,6 @@ contains
     call fldlist_add(fldsToIce_num, fldsToIce, 'Sa_ptem'    ) !cesm
     call fldlist_add(fldsToIce_num, fldsToIce, 'Sa_dens'    ) !cesm
 
-    
-
     ! the following are advertised but might not be connected if they are not present
     ! in the cmeps esmFldsExchange_xxx_mod.F90 that is model specific
     ! from atm - black carbon deposition fluxes (3)
@@ -253,13 +251,11 @@ contains
     call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_vvel'  )
     call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_frzmlt')
 
-    !Ice ocean drag coef.
-    !Added here as it better to send current veloicty and ice velocity to calculate
-    !Ice-to-ocean stress on the ocean model side. NOTE This is not need when coupling
-    !at ever time step; 
-    call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_CdnIO')
+    ! Ice ocean drag coef.
+    ! Added here as it better to send current veloicty and ice velocity to calculate
+    ! Ice-to-ocean stress on the ocean model side. 
     
-
+    call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_CdnIO')
 
     ! the following are advertised but might not be connected if they are not present
     ! in the cmeps esmFldsExchange_xxx_mod.F90 that is model specific
@@ -887,7 +883,6 @@ contains
                                - workx*sin(ANGLET(i,j,iblk))
 
              sst(i,j,iblk) = sst(i,j,iblk) - Tffresh       ! sea sfc temp (C)
-
              sss(i,j,iblk) = max(sss(i,j,iblk),c0)
 
              if (coastal_coupled) then
@@ -908,9 +903,7 @@ contains
                        sst(i,j,iblk)    = -real(0.0543)*sss(i,j,iblk)
                    endif
                 endif
-
              endif
-
           enddo
        enddo
     end do
@@ -1440,7 +1433,7 @@ contains
     call state_setexport(exportState, 'Si_vvel' , input=vvel, lmask=tmask, ifrac=ailohi, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
-    ! Ice freezing melting potential.
+    ! Ice freezing melting potential
 
     call state_setexport(exportState, 'Si_frzmlt' , input=frzmlt, lmask=tmask, ifrac=ailohi, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return

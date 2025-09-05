@@ -46,8 +46,8 @@
          vvel_rest 
       !-----------------------------------------------------------------
       ! state of the ice for each category
-      !----------------------------------------------------------------- 
-      
+      !-----------------------------------------------------------------
+
       real (kind=dbl_kind), dimension (:,:,:,:), allocatable, public :: &
          aicen_rest , & ! concentration of ice
          vicen_rest , & ! volume per unit area of ice          (m)

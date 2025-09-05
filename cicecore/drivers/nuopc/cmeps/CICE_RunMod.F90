@@ -90,7 +90,6 @@
 
       if (sea_ice_time_bry) call get_forcing_bry
 
-
       call init_flux_atm  ! Initialize atmosphere fluxes sent to coupler
       call init_flux_ocn  ! initialize ocean fluxes sent to coupler
 
@@ -187,10 +186,12 @@
       !-----------------------------------------------------------------
       ! restoring on grid boundaries
       !-----------------------------------------------------------------
-      if (sea_ice_time_bry) then
-      else
-        if (restore_ice) call ice_HaloRestore
-      endif
+      
+         if (sea_ice_time_bry) then
+         else
+           if (restore_ice) call ice_HaloRestore
+         endif
+      
       !-----------------------------------------------------------------
       ! initialize diagnostics and save initial state values
       !-----------------------------------------------------------------
@@ -223,7 +224,6 @@
               do iblk = 1, nblocks
                    if (ktherm >= 0) then
                      if (oceanmixed_ice) call  ocean_mixed_layer (dt,iblk)  
-                    !call coupling_prep (iblk)
                    endif
                enddo
                !$OMP END PARALLEL DO
@@ -231,6 +231,7 @@
                 call init_flux_ocn  ! initialize ocean fluxes sent to coupler
             endif
          endif
+
          !$OMP PARALLEL DO PRIVATE(iblk)
          do iblk = 1, nblocks
 
@@ -285,10 +286,10 @@
       !----------------------------------------------------------------- 
       ! restoring on grid boundaries befor dynamics (BC time varying)
       !----------------------------------------------------------------- 
-      if (sea_ice_time_bry) then  
-         if (restore_ice) call ice_HaloRestore
-      endif
 
+         if (sea_ice_time_bry) then  
+            if (restore_ice) call ice_HaloRestore
+         endif
 
       !-----------------------------------------------------------------
       ! dynamics, transport, ridging
@@ -517,7 +518,8 @@
 
          call ice_timer_start(timer_couple,iblk)   ! atm/ocn coupling
 
-         if (oceanmixed_ice) call ocean_mixed_layer (dt,iblk) ! ocean surface fluxes and sst
+         if (oceanmixed_ice) &
+         call ocean_mixed_layer (dt,iblk) ! ocean surface fluxes and sst
              
       !-----------------------------------------------------------------
       ! Aggregate albedos
