@@ -63,7 +63,7 @@
           diag_file, print_global, print_points, latpnt, lonpnt, &
           debug_model, debug_model_step, debug_model_task, &
           debug_model_i, debug_model_j, debug_model_iblk
-      use ice_domain, only: close_boundaries
+      use ice_domain, only: close_boundaries, sea_ice_time_bry
       use ice_domain_size, only: &
           ncat, nilyr, nslyr, nblyr, nfsd, nfreq, &
           n_iso, n_aero, n_zaero, n_algae, &
@@ -103,7 +103,7 @@
           ice_data_type, ice_data_conc, ice_data_dist, &
           snw_filename, &
           snw_tau_fname, snw_kappa_fname, snw_drdt0_fname, &
-          snw_rhos_fname, snw_Tgrd_fname, snw_T_fname
+          snw_rhos_fname, snw_Tgrd_fname, snw_T_fname, sea_ice_bry_dir
       use ice_arrays_column, only: bgc_data_dir, fe_data_type
       use ice_grid, only: &
           grid_file, gridcpl_file, kmt_file, &
@@ -157,7 +157,7 @@
         phi_c_slow_mode, phi_i_mushy, kalg, atmiter_conv, Pstar, Cstar, &
         sw_frac, sw_dtemp, floediam, hfrazilmin, iceruf, iceruf_ocn, &
         rsnw_fall, rsnw_tmax, rhosnew, rhosmin, rhosmax, Tliquidus_max, &
-        windmin, drhosdwind, snwlvlfac
+        windmin, drhosdwind, snwlvlfac,depressT
 
       integer (kind=int_kind) :: ktherm, kstrength, krdg_partic, krdg_redist, natmiter, &
         kitd, kcatbound, ktransport
@@ -238,7 +238,8 @@
         kitd,           ktherm,          conduct,     ksno,             &
         a_rapid_mode,   Rac_rapid_mode,  aspect_rapid_mode,             &
         dSdt_slow_mode, phi_c_slow_mode, phi_i_mushy,                   &
-        floediam,       hfrazilmin,      Tliquidus_max,   hi_min
+        floediam,       hfrazilmin,      Tliquidus_max,   hi_min,       &
+        depressT
 
       namelist /dynamics_nml/ &
         kdyn,           ndte,           revised_evp,    yield_curve,    &
@@ -289,7 +290,7 @@
         fyear_init,     ycycle,          wave_spec_file,restart_coszen, &
         atm_data_dir,   ocn_data_dir,    bgc_data_dir,                  &
         atm_data_format, ocn_data_format, rotate_wind,                  &
-        oceanmixed_file, atm_data_version
+        oceanmixed_file, atm_data_version,sea_ice_bry_dir
 
       !-----------------------------------------------------------------
       ! default values
@@ -559,12 +560,14 @@
       restore_ocn     = .false.   ! restore sst if true
       trestore        = 90        ! restoring timescale, days (0 instantaneous)
       restore_ice     = .false.   ! restore ice state on grid edges if true
+      sea_ice_bry_dir = ' '
       debug_forcing   = .false.   ! true writes diagnostics for input forcing
 
       latpnt(1) =  90._dbl_kind   ! latitude of diagnostic point 1 (deg)
       lonpnt(1) =   0._dbl_kind   ! longitude of point 1 (deg)
       latpnt(2) = -65._dbl_kind   ! latitude of diagnostic point 2 (deg)
       lonpnt(2) = -45._dbl_kind   ! longitude of point 2 (deg)
+      depressT  = 0.054_dbl_kind  ! linear freezing point constant (degC/ppt)
 
 #ifndef CESMCOUPLED
       runid   = 'unknown'   ! run ID used in CESM and for machine 'bering'
@@ -1061,6 +1064,7 @@
       call broadcast_scalar(start_andacc,         master_task)
       call broadcast_scalar(use_mean_vrel,        master_task)
       call broadcast_scalar(conduct,              master_task)
+      call broadcast_scalar(depressT,             master_task)
       call broadcast_scalar(R_ice,                master_task)
       call broadcast_scalar(R_pnd,                master_task)
       call broadcast_scalar(R_snw,                master_task)
@@ -1146,6 +1150,7 @@
       call broadcast_scalar(restore_ocn,          master_task)
       call broadcast_scalar(trestore,             master_task)
       call broadcast_scalar(restore_ice,          master_task)
+      call broadcast_scalar(sea_ice_bry_dir,      master_task) 
       call broadcast_scalar(debug_forcing,        master_task)
       call broadcast_array (latpnt(1:2),          master_task)
       call broadcast_array (lonpnt(1:2),          master_task)
@@ -1648,6 +1653,12 @@
          if (my_task == master_task) write(nu_diag,*) subname//' ERROR: atm_data_type=monthly and calc_strair=T'
          abort_list = trim(abort_list)//":12"
       endif
+
+      if (sea_ice_time_bry) then
+            write(nu_diag,*) ' sea_ice_bry_dir           = ', &
+                               trim(sea_ice_bry_dir)
+      endif
+      
 
       if (ktherm == 2 .and. .not. calc_Tsfc) then
          if (my_task == master_task) write(nu_diag,*) subname//' ERROR: ktherm = 2 and calc_Tsfc=F'
@@ -2323,8 +2334,11 @@
             tmpstr2 = ' : unknown value'
          endif
          write(nu_diag,1030) ' tfrz_option      = ', trim(tfrz_option),trim(tmpstr2)
+         if (trim(tfrz_option) == 'linear_salt') then
+            write(nu_diag,1009) ' depressT         = ', depressT,' : Tfrz = -depressT*SSS linear freezing temp (degC/ppt)'
+         endif
          if (trim(tfrz_option) == 'constant') then
-            write(nu_diag,1002) ' Tocnfrz          = ', Tocnfrz
+            write(nu_diag,1000) ' Tocnfrz          = ', Tocnfrz
          endif
          write(nu_diag,1030) ' congel_freeze    = ', trim(congel_freeze)
          if (update_ocn_f) then
@@ -2609,6 +2623,11 @@
             write(nu_diag,1031) ' default_season   = ', trim(default_season)
          endif
 
+         if (sea_ice_time_bry) then
+            write(nu_diag,*) ' sea_ice_bry_dir           = ', &
+                               trim(sea_ice_bry_dir)
+         endif 
+
          if (wave_spec) then
             write(nu_diag,1031) ' wave_spec_file   = ', trim(wave_spec_file)
          endif
@@ -2744,7 +2763,7 @@
          rsnw_fall_in=rsnw_fall, rsnw_tmax_in=rsnw_tmax, rhosnew_in=rhosnew, &
          snwlvlfac_in=snwlvlfac, rhosmin_in=rhosmin, rhosmax_in=rhosmax, &
          snwredist_in=snwredist, snwgrain_in=snwgrain, snw_aging_table_in=trim(snw_aging_table), &
-         sw_redist_in=sw_redist, sw_frac_in=sw_frac, sw_dtemp_in=sw_dtemp)
+         sw_redist_in=sw_redist, sw_frac_in=sw_frac, sw_dtemp_in=sw_dtemp,sea_ice_time_bry_in=sea_ice_time_bry,depressT_in=depressT)
       call icepack_init_tracer_flags(tr_iage_in=tr_iage, tr_FY_in=tr_FY, &
          tr_lvl_in=tr_lvl, tr_iso_in=tr_iso, tr_aero_in=tr_aero, &
          tr_fsd_in=tr_fsd, tr_snow_in=tr_snow, tr_pond_in=tr_pond, &

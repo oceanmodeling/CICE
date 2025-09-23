@@ -7,7 +7,7 @@ module ice_import_export
   use ice_constants      , only : c0, c1, spval_dbl, radius
   use ice_constants      , only : field_loc_center, field_type_scalar, field_type_vector
   use ice_blocks         , only : block, get_block, nx_block, ny_block
-  use ice_domain         , only : nblocks, blocks_ice, halo_info, distrb_info
+  use ice_domain         , only : nblocks, blocks_ice, halo_info, distrb_info, coastal_coupled
   use ice_domain_size    , only : nx_global, ny_global, block_size_x, block_size_y, max_blocks, ncat
   use ice_domain_size    , only : nfreq, nfsd
   use ice_exit           , only : abort_ice
@@ -21,12 +21,12 @@ module ice_import_export
   use ice_flux_bgc       , only : Qa_iso, Qref_iso, HDO_ocn, H2_18O_ocn, H2_16O_ocn
   use ice_flux           , only : fresh, fsalt, zlvl, uatm, vatm, potT, Tair, Qa
   use ice_flux           , only : rhoa, swvdr, swvdf, swidr, swidf, flw, frain
-  use ice_flux           , only : fsnow, uocn, vocn, sst, ss_tltx, ss_tlty, frzmlt
+  use ice_flux           , only : fsnow, uocn, vocn, sst, ss_tltx, ss_tlty, frzmlt, hmix
   use ice_flux           , only : send_i2x_per_cat
   use ice_flux           , only : sss, Tf, wind, fsw
-  use ice_arrays_column  , only : floe_rad_c, wave_spectrum
+  use ice_arrays_column  , only : floe_rad_c, wave_spectrum, Cdn_ocn, oceanmixed_ice
   use ice_state          , only : vice, vsno, aice, aicen_init, trcr, trcrn
-  use ice_grid           , only : tlon, tlat, tarea, tmask, anglet, hm
+  use ice_grid           , only : tlon, tlat, tarea, tmask, anglet, hm, bathymetry
   use ice_grid           , only : grid_format
   use ice_mesh_mod       , only : ocn_gridcell_frac
   use ice_boundary       , only : ice_HaloUpdate
@@ -45,7 +45,10 @@ module ice_import_export
   use shr_frz_mod        , only : shr_frz_freezetemp
   use shr_mpi_mod        , only : shr_mpi_min, shr_mpi_max
 #endif
-
+  
+  use ice_calendar       , only : dt
+  use ice_state          , only : uvel, vvel
+  use icepack_parameters , only : cprho
   implicit none
   public
 
@@ -178,6 +181,7 @@ contains
     call fldlist_add(fldsToIce_num, fldsToIce, 'So_u'    )
     call fldlist_add(fldsToIce_num, fldsToIce, 'So_v'    )
     call fldlist_add(fldsToIce_num, fldsToIce, 'Fioo_q'  )
+    call fldlist_add(fldsToIce_num, fldsToIce, 'So_h' )
     if (flds_wiso) then
        call fldlist_add(fldsToIce_num, fldsToIce, 'So_roce_wiso', ungridded_lbound=1, ungridded_ubound=3)
     end if
@@ -242,6 +246,16 @@ contains
     call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_avsdf' )
     call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_anidr' )
     call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_anidf' )
+
+    call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_uvel'  )
+    call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_vvel'  )
+    call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_frzmlt')
+
+    ! Ice ocean drag coef.
+    ! Added here as it better to send current veloicty and ice velocity to calculate
+    ! Ice-to-ocean stress on the ocean model side. 
+    
+    call fldlist_add(fldsFrIce_num, fldsFrIce, 'Si_CdnIO')
 
     ! the following are advertised but might not be connected if they are not present
     ! in the cmeps esmFldsExchange_xxx_mod.F90 that is model specific
@@ -585,13 +599,25 @@ contains
              Tair (i,j,iblk)         = aflds(i,j, 7,iblk)
              Qa   (i,j,iblk)         = aflds(i,j, 8,iblk)
              frzmlt (i,j,iblk)       = aflds(i,j, 9,iblk)
-             swvdr(i,j,iblk)         = aflds(i,j,10,iblk)
-             swidr(i,j,iblk)         = aflds(i,j,11,iblk)
-             swvdf(i,j,iblk)         = aflds(i,j,12,iblk)
-             swidf(i,j,iblk)         = aflds(i,j,13,iblk)
+             if (coastal_coupled) then 
+                swvdr(i,j,iblk)         = real(0.28)*aflds(i,j,10,iblk)
+                swidr(i,j,iblk)         = real(0.24)*aflds(i,j,10,iblk)
+                swvdf(i,j,iblk)         = real(0.31)*aflds(i,j,10,iblk)
+                swidf(i,j,iblk)         = real(0.17)*aflds(i,j,10,iblk)
+             else
+                swvdr(i,j,iblk)         = aflds(i,j,10,iblk)
+                swidr(i,j,iblk)         = aflds(i,j,11,iblk)
+                swvdf(i,j,iblk)         = aflds(i,j,12,iblk)
+                swidf(i,j,iblk)         = aflds(i,j,13,iblk)
+             end if
              flw  (i,j,iblk)         = aflds(i,j,14,iblk)
-             frain(i,j,iblk)         = aflds(i,j,15,iblk)
-             fsnow(i,j,iblk)         = aflds(i,j,16,iblk)
+             if (coastal_coupled) then
+                frain(i,j,iblk)         = abs(max(aflds(i,j,15,iblk),c0))
+                fsnow(i,j,iblk)         = abs(min(aflds(i,j,15,iblk),c0))
+             else
+                frain(i,j,iblk)         = aflds(i,j,15,iblk)
+                fsnow(i,j,iblk)         = aflds(i,j,16,iblk)
+             end if
           end do
        end do
     end do
@@ -699,6 +725,33 @@ contains
 
     deallocate(aflds)
 
+    !---------------------------------------------
+    ! get mixed layer depth
+    !---------------------------------------------
+
+    allocate(aflds(nx_block,ny_block,nfldv,nblocks))
+    aflds = c0
+
+    ! Get mixed layer depth from ocean 
+
+    call state_getimport(importState, 'So_h', output=aflds, index=1, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    if (.not.prescribed_ice) then
+       call t_startf ('cice_imp_halo')
+       call ice_HaloUpdate(aflds, halo_info, field_loc_center, field_type_vector)
+       call t_stopf ('cice_imp_halo')
+    endif
+
+    !$OMP PARALLEL DO PRIVATE(iblk,i,j)
+    do iblk = 1, nblocks
+       do j = 1,ny_block
+          do i = 1,nx_block
+             hmix(i,j,iblk) = aflds(i,j, 1,iblk)
+          enddo  !i
+       enddo     !j
+    enddo        !iblk
+    !$OMP END PARALLEL DO
     !-------------------------------------------------------
     ! Get aerosols from mediator
     !-------------------------------------------------------
@@ -830,13 +883,31 @@ contains
                                - workx*sin(ANGLET(i,j,iblk))
 
              sst(i,j,iblk) = sst(i,j,iblk) - Tffresh       ! sea sfc temp (C)
-
              sss(i,j,iblk) = max(sss(i,j,iblk),c0)
 
+             if (coastal_coupled) then
+                ! For now assume water is well mixed to 50m
+                ! There is a hook above that can be used to passed mld to 
+                ! model.
+                
+                ! Freezing and melting potential
+                if (oceanmixed_ice) then
+                  hmix (i,j,iblk)  = max(min(hmix(i,j,iblk),real(50.0)),real(5.0))
+                else !coupled configuration without ocean model active
+                   hmix (i,j,iblk)  = max(min(bathymetry(i,j,iblk),real(50.0)),real(5.0))
+                   frzmlt(i,j,iblk) = (-real(0.0543)*sss(i,j,iblk)-sst(i,j,iblk))*cprho*hmix(i,j,iblk)/dt
+                   frzmlt(i,j,iblk) = min(max(frzmlt(i,j,iblk),real(-1000.0)),real(1000.0))
+                   ! After calcuting potential the sst is reset to freezing point.
+
+                   if (sst(i,j,iblk) < -real(0.0543)*sss(i,j,iblk)) then
+                       sst(i,j,iblk)    = -real(0.0543)*sss(i,j,iblk)
+                   endif
+                endif
+             endif
           enddo
        enddo
     end do
-
+    !$OMP END PARALLEL DO
 #ifdef CESMCOUPLED
     ! Use shr_frz_mod for this
     do iblk = 1, nblocks
@@ -1354,6 +1425,23 @@ contains
        end do
     end if
 
+    ! Snow volume
+    call state_setexport(exportState, 'Si_uvel' , input=uvel, lmask=tmask, ifrac=ailohi, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    ! Ice volume
+    call state_setexport(exportState, 'Si_vvel' , input=vvel, lmask=tmask, ifrac=ailohi, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    ! Ice freezing melting potential
+
+    call state_setexport(exportState, 'Si_frzmlt' , input=frzmlt, lmask=tmask, ifrac=ailohi, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+
+    ! Ice-ocean Drag coeffecient
+    call state_setexport(exportState, 'Si_CdnIO' , input=Cdn_ocn , lmask=tmask, ifrac=ailohi, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
   end subroutine ice_export
 
   !===============================================================================

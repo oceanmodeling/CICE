@@ -76,6 +76,7 @@ contains
     use ice_calendar         , only: dt, dt_dyn, istep, istep1, write_ic, init_calendar, calendar
     use ice_communicate      , only: my_task, master_task
     use ice_diagnostics      , only: init_diags
+    use ice_domain           , only: sea_ice_time_bry 
     use ice_domain_size      , only: ncat, nfsd, nfreq
     use ice_dyn_eap          , only: init_eap
     use ice_dyn_evp          , only: init_evp
@@ -83,7 +84,7 @@ contains
     use ice_dyn_shared       , only: kdyn
     use ice_flux             , only: init_coupler_flux, init_history_therm
     use ice_flux             , only: init_history_dyn, init_flux_atm, init_flux_ocn
-    use ice_forcing          , only: init_snowtable
+    use ice_forcing          , only: init_snowtable,init_forcing_bry, get_forcing_bry,get_forcing_ocn,get_forcing_atmo,init_forcing_ocn, init_forcing_atmo
     use ice_forcing_bgc      , only: get_forcing_bgc, get_atm_bgc
     use ice_forcing_bgc      , only: faero_default, alloc_forcing_bgc, fiso_default
     use ice_grid             , only: dealloc_grid
@@ -143,7 +144,7 @@ contains
     call init_state           ! initialize the ice state
     call init_transport       ! initialize horizontal transport
     call ice_HaloRestore_init ! restored boundary conditions
-
+    
     call icepack_query_parameters(skl_bgc_out=skl_bgc, z_tracers_out=z_tracers, &
          wave_spec_out=wave_spec, snw_aging_table_out=snw_aging_table)
     call icepack_warnings_flush(nu_diag)
@@ -193,13 +194,16 @@ contains
     !--------------------------------------------------------------------
 
     if (z_tracers) call get_atm_bgc                   ! biogeochemistry
-
+    
     if (runtype == 'initial' .and. .not. restart) then
        call init_shortwave    ! initialize radiative transfer using current swdn
     end if
 
     call init_flux_atm        ! initialize atmosphere fluxes sent to coupler
     call init_flux_ocn        ! initialize ocean fluxes sent to coupler
+    
+    if (sea_ice_time_bry) call init_forcing_bry    
+    if (sea_ice_time_bry) call get_forcing_bry      ! sea-ice boundary data                      |
 
     call dealloc_grid         ! deallocate temporary grid arrays
 

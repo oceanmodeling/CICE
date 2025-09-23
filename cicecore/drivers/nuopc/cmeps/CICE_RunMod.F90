@@ -26,7 +26,9 @@
       use icepack_intfc, only: icepack_max_iso, icepack_max_aero
       use icepack_intfc, only: icepack_query_parameters
       use icepack_intfc, only: icepack_query_tracer_flags, icepack_query_tracer_sizes
-
+      use ice_forcing, only: get_forcing_bry, ocn_freezing_temperature
+      use ice_domain, only:sea_ice_time_bry  
+      use ice_communicate, only: MPI_COMM_ICE, my_task, master_task
       implicit none
       private
       public :: CICE_Run, ice_step
@@ -53,6 +55,8 @@
       use ice_flux, only: init_flux_atm, init_flux_ocn
       use ice_timers, only: ice_timer_start, ice_timer_stop, &
           timer_couple, timer_step
+      use ice_restoring, only: restore_ice, ice_HaloRestore
+
       logical (kind=log_kind) :: &
           tr_iso, tr_aero, tr_zaero, skl_bgc, z_tracers, wave_spec, tr_fsd
       character(len=*), parameter :: subname = '(CICE_Run)'
@@ -83,6 +87,8 @@
       call advance_timestep()  ! advance timestep and update calendar data
 
       if (z_tracers) call get_atm_bgc                   ! biogeochemistry
+
+      if (sea_ice_time_bry) call get_forcing_bry
 
       call init_flux_atm  ! Initialize atmosphere fluxes sent to coupler
       call init_flux_ocn  ! initialize ocean fluxes sent to coupler
@@ -115,11 +121,12 @@
       use ice_calendar, only: calendar_sec2hms, write_history, nstreams, histfreq
       use ice_diagnostics, only: init_mass_diags, runtime_diags, debug_model, debug_ice
       use ice_diagnostics_bgc, only: hbrine_diags, bgc_diags
-      use ice_domain, only: halo_info, nblocks
+      use ice_domain, only: halo_info, nblocks, coastal_coupled
       use ice_dyn_eap, only: write_restart_eap
       use ice_dyn_shared, only: kdyn, kridge
       use ice_flux, only: scale_factor, init_history_therm, &
           daidtt, daidtd, dvidtt, dvidtd, dvsdtt, dvsdtd, dagedtt, dagedtd
+      use ice_flux, only: init_flux_atm, init_flux_ocn
       use ice_history, only: accum_hist
       use ice_history_bgc, only: init_history_bgc
       use ice_restart, only: final_restart
@@ -138,6 +145,7 @@
           timer_hist, timer_readwrite
       use ice_communicate, only: MPI_COMM_ICE, my_task, master_task
       use ice_prescribed_mod
+      use ice_step_mod, only: ocean_mixed_layer
 
       integer (kind=int_kind) :: &
          iblk        , & ! block index
@@ -178,9 +186,12 @@
       !-----------------------------------------------------------------
       ! restoring on grid boundaries
       !-----------------------------------------------------------------
-
-         if (restore_ice) call ice_HaloRestore
-
+      
+         if (sea_ice_time_bry) then
+         else
+           if (restore_ice) call ice_HaloRestore
+         endif
+      
       !-----------------------------------------------------------------
       ! initialize diagnostics and save initial state values
       !-----------------------------------------------------------------
@@ -202,6 +213,24 @@
 
          call ice_timer_start(timer_column)  ! column physics
          call ice_timer_start(timer_thermo)  ! thermodynamics
+        
+      !-----------------------------------------------------------------
+      !   Update ocean for nuopc standalone runs
+      !-----------------------------------------------------------------
+         
+         if (coastal_coupled) then
+            if (oceanmixed_ice)  then
+              !$OMP PARALLEL DO PRIVATE(iblk)   
+              do iblk = 1, nblocks
+                   if (ktherm >= 0) then
+                     if (oceanmixed_ice) call  ocean_mixed_layer (dt,iblk)  
+                   endif
+               enddo
+               !$OMP END PARALLEL DO
+                call init_flux_atm  ! Initialize atmosphere fluxes sent to coupler
+                call init_flux_ocn  ! initialize ocean fluxes sent to coupler
+            endif
+         endif
 
          !$OMP PARALLEL DO PRIVATE(iblk)
          do iblk = 1, nblocks
@@ -253,6 +282,14 @@
 
          call ice_timer_stop(timer_thermo) ! thermodynamics
          call ice_timer_stop(timer_column) ! column physics
+
+      !----------------------------------------------------------------- 
+      ! restoring on grid boundaries befor dynamics (BC time varying)
+      !----------------------------------------------------------------- 
+
+         if (sea_ice_time_bry) then  
+            if (restore_ice) call ice_HaloRestore
+         endif
 
       !-----------------------------------------------------------------
       ! dynamics, transport, ridging
@@ -483,7 +520,7 @@
 
          if (oceanmixed_ice) &
          call ocean_mixed_layer (dt,iblk) ! ocean surface fluxes and sst
-
+             
       !-----------------------------------------------------------------
       ! Aggregate albedos
       !-----------------------------------------------------------------
