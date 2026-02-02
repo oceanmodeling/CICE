@@ -25,12 +25,13 @@ module ice_comp_nuopc
   use ice_communicate    , only : init_communicate, my_task, master_task, mpi_comm_ice
   use ice_calendar       , only : force_restart_now, write_ic
   use ice_calendar       , only : idate, idate0,  mday, mmonth, myear, year_init, month_init, day_init
-  use ice_calendar       , only : msec, dt, calendar, calendar_type, nextsw_cday, istep
-  use ice_calendar       , only : ice_calendar_noleap, ice_calendar_gregorian, use_leap_years
+  use ice_calendar       , only : msec, dt, calendar, calendar_type, nextsw_cday, istep, use_leap_years
+  use ice_calendar       , only : ice_calendar_noleap, ice_calendar_proleptic_gregorian, ice_calendar_gregorian
   use ice_kinds_mod      , only : dbl_kind, int_kind, char_len, char_len_long
   use ice_fileunits      , only : nu_diag, nu_diag_set, inst_index, inst_name
   use ice_fileunits      , only : inst_suffix, release_all_fileunits, flush_fileunit
-  use ice_restart_shared , only : runid, runtype, restart, use_restart_time, restart_dir, restart_file, restart_format, restart_chunksize
+  use ice_restart_shared , only : runid, runtype, restart, use_restart_time, restart_dir, restart_file, &
+                                  restart_format, restart_chunksize, pointer_date
   use ice_history        , only : accum_hist
   use ice_history_shared , only : history_format, history_chunksize
   use ice_exit           , only : abort_ice
@@ -57,6 +58,9 @@ module ice_comp_nuopc
   use ice_scam           , only : scol_valid, single_column
 #ifndef CESMCOUPLED
   use shr_is_restart_fh_mod, only : init_is_restart_fh, is_restart_fh, is_restart_fh_type
+#endif
+#ifdef UFS_TRACING
+  use ufs_trace_mod
 #endif
 
   implicit none
@@ -116,6 +120,9 @@ module ice_comp_nuopc
   character(*), parameter      :: u_FILE_u = &
        __FILE__
 
+#ifdef UFS_TRACING
+  integer :: mype = -1
+#endif
 !=======================================================================
 contains
 !===============================================================================
@@ -127,11 +134,24 @@ contains
     integer, intent(out) :: rc
 
     ! Local variables
+#ifdef UFS_TRACING
+    type(ESMF_VM)                          :: vm
+#endif
     character(len=*),parameter  :: subname=trim(modName)//':(SetServices) '
     !--------------------------------
 
     rc = ESMF_SUCCESS
     if (dbug > 5) call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
+
+#ifdef UFS_TRACING
+    call ESMF_GridCompGet(gcomp, vm=vm,rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_VMGet(vm, localpet=mype, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    if (mype == 0) call ufs_trace_init()
+    if (mype == 0) call ufs_trace("cice", "SetServices", "B")
+#endif
 
     ! the NUOPC gcomp component will register the generic methods
     call NUOPC_CompDerive(gcomp, model_routine_SS, rc=rc)
@@ -168,6 +188,9 @@ contains
 
     if (dbug > 5) call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
 
+#ifdef UFS_TRACING
+    if (mype == 0) call ufs_trace("cice", "SetServices", "E")
+#endif
   end subroutine SetServices
 
   !===============================================================================
@@ -186,6 +209,9 @@ contains
     !--------------------------------
 
     rc = ESMF_SUCCESS
+#ifdef UFS_TRACING
+    if (mype == 0) call ufs_trace("cice", "InitializeP0", "B")
+#endif
 
     ! Switch to IPDv01 by filtering all other phaseMap entries
     call NUOPC_CompFilterPhaseMap(gcomp, ESMF_METHOD_INITIALIZE, &
@@ -200,6 +226,9 @@ contains
     write(logmsg,*) profile_memory
     call ESMF_LogWrite('CICE_cap:ProfileMemory = '//trim(logmsg), ESMF_LOGMSG_INFO)
 
+#ifdef UFS_TRACING
+    if (mype == 0) call ufs_trace("cice", "InitializeP0", "E")
+#endif
   end subroutine InitializeP0
 
   !===============================================================================
@@ -254,6 +283,10 @@ contains
     character(len=char_len)      :: tfrz_option_driver    ! tfrz_option from cice namelist
     character(len=*), parameter :: subname=trim(modName)//':(InitializeAdvertise) '
     !--------------------------------
+
+#ifdef UFS_TRACING
+    if (mype == 0) call ufs_trace("cice", "InitializeAdvertise", "B")
+#endif
 
     call ufs_settimer(wtime)
 
@@ -329,6 +362,15 @@ contains
        if (trim(cvalue) .eq. '.true.') restart_eor = .true.
     endif
 
+#ifdef CESMCOUPLED
+    pointer_date = .true.
+#endif
+
+    ! set CICE internal pointer_date variable based on nuopc settings
+    ! this appends a datestamp to the "rpointer" file
+    call NUOPC_CompAttributeGet(gcomp, name="restart_pointer_append_date", value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    if (isPresent .and. isSet) pointer_date = (trim(cvalue) .eq. ".true.")
     !----------------------------------------------------------------------------
     ! generate local mpi comm
     !----------------------------------------------------------------------------
@@ -498,7 +540,7 @@ contains
     if (esmf_caltype == ESMF_CALKIND_NOLEAP) then
        calendar_type = ice_calendar_noleap
     else if (esmf_caltype == ESMF_CALKIND_GREGORIAN) then
-       calendar_type = ice_calendar_gregorian
+       calendar_type = ice_calendar_proleptic_gregorian
     else
        call abort_ice( subname//'ERROR:: bad calendar for ESMF' )
     end if
@@ -755,6 +797,9 @@ contains
 
     call t_stopf ('cice_init_total')
     if (mastertask) call ufs_logtimer(nu_timer,msec,'InitializeAdvertise time: ',runtimelog,wtime)
+#ifdef UFS_TRACING
+    if (mype == 0) call ufs_trace("cice", "InitializeAdvertise", "E")
+#endif
   end subroutine InitializeAdvertise
 
   !===============================================================================
@@ -788,6 +833,10 @@ contains
     !--------------------------------
 
     rc = ESMF_SUCCESS
+#ifdef UFS_TRACING
+    if (mype == 0) call ufs_trace("cice", "InitializeRealize", "B")
+#endif
+
     if (dbug > 5) call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
 
     call ufs_settimer(wtime)
@@ -858,7 +907,7 @@ contains
     day_init  = idate0-year_init*10000-month_init*100
 
     !  - Set use_leap_years based on calendar (as some CICE calls use this instead of the calendar type)
-    if (calendar_type == ice_calendar_gregorian) then
+    if (calendar_type == ice_calendar_proleptic_gregorian) then
       use_leap_years = .true.
     else
       use_leap_years = .false. ! no_leap calendars
@@ -989,6 +1038,9 @@ contains
     call flush_fileunit(nu_diag)
 
     if (mastertask) call ufs_logtimer(nu_timer,msec,'InitializeRealize time: ',runtimelog,wtime)
+#ifdef UFS_TRACING
+    if (mype == 0) call ufs_trace("cice", "InitializeRealize", "E")
+#endif
   end subroutine InitializeRealize
 
   !===============================================================================
@@ -1037,6 +1089,9 @@ contains
     !--------------------------------
 
     rc = ESMF_SUCCESS
+#ifdef UFS_TRACING
+    if (mype == 0) call ufs_trace("cice", "ModelAdvance", "B")
+#endif
     if (mastertask) call ufs_logtimer(nu_timer,msec,'ModelAdvance time since last step: ',runtimelog,wtime)
     call ufs_settimer(wtime)
 
@@ -1277,6 +1332,9 @@ contains
     if (dbug > 5) call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
 
     if (mastertask) call ufs_logtimer(nu_timer,msec,'ModelAdvance time: ',runtimelog,wtime)
+#ifdef UFS_TRACING
+    if (mype == 0) call ufs_trace("cice", "ModelAdvance", "E")
+#endif
     call ufs_settimer(wtime)
 
   end subroutine ModelAdvance
@@ -1431,6 +1489,9 @@ contains
     !--------------------------------
 
     rc = ESMF_SUCCESS
+#ifdef UFS_TRACING
+    if (mype == 0) call ufs_trace("cice", "ModelFinalize", "B")
+#endif
     call ufs_settimer(wtime)
     if (dbug > 5) call ESMF_LogWrite(subname//' called', ESMF_LOGMSG_INFO)
     if (my_task == master_task) then
@@ -1441,6 +1502,9 @@ contains
     if (dbug > 5) call ESMF_LogWrite(subname//' done', ESMF_LOGMSG_INFO)
 
     if(mastertask) call ufs_logtimer(nu_timer,msec,'ModelFinalize time: ',runtimelog,wtime)
+#ifdef UFS_TRACING
+    if (mype == 0) call ufs_trace("cice", "ModelFinalize", "E")
+#endif
 
   end subroutine ModelFinalize
 

@@ -69,7 +69,7 @@
       use ice_domain_size, only: max_blocks, max_nstrm, nilyr, nslyr, nblyr, ncat, nfsd
       use ice_dyn_shared, only: kdyn
       use ice_flux, only: mlt_onset, frz_onset, albcnt, snwcnt
-      use ice_grid, only: grid_ice, &
+      use ice_grid, only: grid_ice, grid_outfile, &
           grid_atm_thrm, grid_atm_dynu, grid_atm_dynv, &
           grid_ocn_thrm, grid_ocn_dynu, grid_ocn_dynv
       use ice_history_shared ! everything
@@ -239,15 +239,14 @@
          call get_fileunit(nu_nml)
          open (nu_nml, file=trim(nml_filename), status='old',iostat=nml_error)
          if (nml_error /= 0) then
-            call abort_ice(subname//'ERROR: '//trim(nml_name)//' open file '// &
-               trim(nml_filename), &
-               file=__FILE__, line=__LINE__)
+            call abort_ice(subname//' ERROR: '//trim(nml_name)//' open file '// &
+               trim(nml_filename), file=__FILE__, line=__LINE__)
          endif
 
          ! seek to this namelist
          call goto_nml(nu_nml,trim(nml_name),nml_error)
          if (nml_error /= 0) then
-            call abort_ice(subname//'ERROR: searching for '// trim(nml_name), &
+            call abort_ice(subname//' ERROR: searching for '// trim(nml_name), &
                file=__FILE__, line=__LINE__)
          endif
 
@@ -260,7 +259,7 @@
                ! backspace and re-read erroneous line
                backspace(nu_nml)
                read(nu_nml,fmt='(A)') tmpstr2
-               call abort_ice(subname//'ERROR: ' // trim(nml_name) // ' reading ' // &
+               call abort_ice(subname//' ERROR: ' // trim(nml_name) // ' reading ' // &
                     trim(tmpstr2), file=__FILE__, line=__LINE__)
             endif
          end do
@@ -278,22 +277,34 @@
                 nstreams = nstreams + 1
                 if (ns >= 2) then
                    if (histfreq(ns-1) == 'x') then
-                      call abort_ice(subname//'ERROR: histfreq all non x must be at start of array')
+                      call abort_ice(subname//' ERROR: histfreq all non x must be at start of array', &
+                           file=__FILE__, line=__LINE__)
                    endif
                 endif
          else if (histfreq(ns) /= 'x') then
-             call abort_ice(subname//'ERROR: histfreq contains illegal element')
+             write(nu_diag, * ) subname,' ns,histfreq = ',ns,histfreq(ns)
+             call abort_ice(subname//' ERROR: histfreq contains illegal element', &
+                  file=__FILE__, line=__LINE__)
          endif
       enddo
-      if (nstreams == 0) write (nu_diag,*) 'WARNING: No history output'
+      if (nstreams == 0 .and. my_task == master_task) write (nu_diag,*) subname,' WARNING: No history output'
       do ns1 = 1, nstreams
          do ns2 = 1, nstreams
             if (histfreq(ns1) == histfreq(ns2) .and. ns1/=ns2 &
                .and. my_task == master_task) then
-               call abort_ice(subname//'ERROR: histfreq elements must be unique')
+               call abort_ice(subname//' ERROR: histfreq elements must be unique', &
+                    file=__FILE__, line=__LINE__)
             endif
          enddo
       enddo
+
+      ! Turn on one-time grid output file
+      if (grid_outfile) then
+         nstreams = nstreams + 1
+         histfreq(nstreams) = 'g'
+         hist_avg(nstreams) = .false.
+         if (my_task == master_task) write (nu_diag,*) subname,' Writing one-time grid file'
+      endif
 
       if (.not. tr_iage) then
          f_iage = 'x'
@@ -444,14 +455,6 @@
          f_taubxE = f_taubx
          f_taubyE = f_tauby
       endif
-
-      ! write dimensions for 3D or 4D history variables
-      ! note: list of variables checked here is incomplete
-      if (f_aicen(1:1) /= 'x' .or. f_vicen(1:1) /= 'x' .or. &
-          f_Tinz (1:1) /= 'x' .or. f_Sinz (1:1) /= 'x') f_NCAT  = .true.
-      if (f_Tinz (1:1) /= 'x' .or. f_Sinz (1:1) /= 'x') f_VGRDi = .true.
-      if (f_Tsnz (1:1) /= 'x')                          f_VGRDs = .true.
-      if (tr_fsd)                                       f_NFSD  = .true.
 
       call broadcast_scalar (f_tlon, master_task)
       call broadcast_scalar (f_tlat, master_task)
@@ -1532,17 +1535,17 @@
 
          call define_hist_field(n_sitemptop,"sitemptop","K",tstr2D, tcstr,    &
              "sea ice surface temperature", &
-             "none", c1, c0,           &
+             "none", c1, Tffresh,           &
              ns1, f_sitemptop, avg_ice_present=.true., mask_ice_free_points=.true.)
 
          call define_hist_field(n_sitempsnic,"sitempsnic","K",tstr2D, tcstr,    &
              "snow ice interface temperature", &
-             "surface temperature when no snow present", c1, c0, &
+             "surface temperature when no snow present", c1, Tffresh, &
              ns1, f_sitempsnic, avg_ice_present=.true., mask_ice_free_points=.true.)
 
          call define_hist_field(n_sitempbot,"sitempbot","K",tstr2D, tcstr,    &
              "sea ice bottom temperature",                             &
-             "none", c1, c0,           &
+             "none", c1, Tffresh,           &
              ns1, f_sitempbot, avg_ice_present=.true., mask_ice_free_points=.true.)
 
          call define_hist_field(n_siu,"siu","m/s",ustr2D, ucstr,  &
@@ -2319,7 +2322,7 @@
             timedbl = (timesecs-dt)/(secday)
             time_beg(ns) = real(timedbl,kind=real_kind)
          endif
-      enddo
+      enddo  ! ns
 
       !---------------------------------------------------------------
       ! increment field
@@ -2750,22 +2753,18 @@
            worka(:,:) = c0
            do j = jlo, jhi
            do i = ilo, ihi
-              if (aice(i,j,iblk) > puny) &
-              worka(i,j) = aice(i,j,iblk)*(trcr(i,j,nt_Tsfc,iblk)+Tffresh)
+              worka(i,j) = aice(i,j,iblk)*trcr(i,j,nt_Tsfc,iblk)
            enddo
            enddo
            call accum_hist_field(n_sitemptop, iblk, worka(:,:), a2D)
          endif
 
+         ! Tsnice is already multiplied by aicen in icepack.
          if (f_sitempsnic(1:1) /= 'x') then
            worka(:,:) = c0
            do j = jlo, jhi
            do i = ilo, ihi
-              if (vsno(i,j,iblk) > puny .and. aice_init(i,j,iblk) > puny) then
-                 worka(i,j) = aice(i,j,iblk)*(Tsnice(i,j,iblk)/aice_init(i,j,iblk)+Tffresh)
-              else
-                 worka(i,j) = aice(i,j,iblk)*(trcr(i,j,nt_Tsfc,iblk)+Tffresh)
-              endif
+              worka(i,j) = Tsnice(i,j,iblk)
            enddo
            enddo
            call accum_hist_field(n_sitempsnic, iblk, worka(:,:), a2D)
@@ -2775,8 +2774,7 @@
            worka(:,:) = c0
            do j = jlo, jhi
            do i = ilo, ihi
-              if (aice_init(i,j,iblk) > puny) &
-                 worka(i,j) = aice(i,j,iblk)*(Tbot(i,j,iblk)/aice_init(i,j,iblk)+Tffresh)
+              worka(i,j) = aice(i,j,iblk)*Tbot(i,j,iblk)
            enddo
            enddo
            call accum_hist_field(n_sitempbot, iblk, worka(:,:), a2D)
@@ -3702,29 +3700,36 @@
            do n = 1, num_avail_hist_fields_2D
               if (avail_hist_fields(n)%vhistfreq == histfreq(ns)) then
 
-              do j = jlo, jhi
-              do i = ilo, ihi
-                 if (.not. tmask(i,j,iblk)) then ! mask out land points
-                    a2D(i,j,n,iblk) = spval_dbl
-                 else                            ! convert units
-                    a2D(i,j,n,iblk) = avail_hist_fields(n)%cona*a2D(i,j,n,iblk) &
-                                   * ravgct + avail_hist_fields(n)%conb
-                 endif
-              enddo             ! i
-              enddo             ! j
-
-              ! Only average for timesteps when ice present
+              ! Only average when/where ice present
               if (avail_hist_fields(n)%avg_ice_present) then
                  do j = jlo, jhi
                  do i = ilo, ihi
-                    if (tmask(i,j,iblk)) then
-                          a2D(i,j,n,iblk) = &
-                          a2D(i,j,n,iblk)*avgct(ns)*ravgip(i,j)
+                    if (.not. tmask(i,j,iblk)) then
+                       a2D(i,j,n,iblk) = spval_dbl
+                    else                            ! convert units
+                       a2D(i,j,n,iblk) = avail_hist_fields(n)%cona*a2D(i,j,n,iblk) &
+                                      * ravgip(i,j) + avail_hist_fields(n)%conb
                     endif
-                    ! Mask ice-free points
-                    if (avail_hist_fields(n)%mask_ice_free_points) then
-                       if (ravgip(i,j) == c0) a2D(i,j,n,iblk) = spval_dbl
+                 enddo             ! i
+                 enddo             ! j
+              else
+                 do j = jlo, jhi
+                 do i = ilo, ihi
+                    if (.not. tmask(i,j,iblk)) then ! mask out land points
+                       a2D(i,j,n,iblk) = spval_dbl
+                    else                            ! convert units
+                       a2D(i,j,n,iblk) = avail_hist_fields(n)%cona*a2D(i,j,n,iblk) &
+                                      * ravgct + avail_hist_fields(n)%conb
                     endif
+                 enddo             ! i
+                 enddo             ! j
+              endif
+
+              ! Mask ice-free points
+              if (avail_hist_fields(n)%mask_ice_free_points) then
+                 do j = jlo, jhi
+                 do i = ilo, ihi
+                    if (ravgip(i,j) == c0) a2D(i,j,n,iblk) = spval_dbl
                  enddo             ! i
                  enddo             ! j
               endif
@@ -3835,30 +3840,33 @@
               nn = n2D + n
               if (avail_hist_fields(nn)%vhistfreq == histfreq(ns)) then
 
-              do k = 1, ncat_hist
-              do j = jlo, jhi
-              do i = ilo, ihi
-                 if (.not. tmask(i,j,iblk)) then ! mask out land points
-                    a3Dc(i,j,k,n,iblk) = spval_dbl
-                 else                            ! convert units
-                    a3Dc(i,j,k,n,iblk) = avail_hist_fields(nn)%cona*a3Dc(i,j,k,n,iblk) &
-                                   * ravgct + avail_hist_fields(nn)%conb
+                 if (avail_hist_fields(nn)%avg_ice_present) then
+                    do k = 1, ncat_hist
+                    do j = jlo, jhi
+                    do i = ilo, ihi
+                       if (.not. tmask(i,j,iblk)) then ! mask out land points
+                          a3Dc(i,j,k,n,iblk) = spval_dbl
+                       else                            ! convert units
+                          a3Dc(i,j,k,n,iblk) = avail_hist_fields(nn)%cona*a3Dc(i,j,k,n,iblk) &
+                                         * ravgipn(i,j,k) + avail_hist_fields(nn)%conb
+                       endif
+                    enddo             ! i
+                    enddo             ! j
+                    enddo             ! k
+                 else
+                    do k = 1, ncat_hist
+                    do j = jlo, jhi
+                    do i = ilo, ihi
+                       if (.not. tmask(i,j,iblk)) then ! mask out land points
+                          a3Dc(i,j,k,n,iblk) = spval_dbl
+                       else                            ! convert units
+                          a3Dc(i,j,k,n,iblk) = avail_hist_fields(nn)%cona*a3Dc(i,j,k,n,iblk) &
+                                         * ravgct + avail_hist_fields(nn)%conb
+                       endif
+                    enddo             ! i
+                    enddo             ! j
+                    enddo             ! k
                  endif
-              enddo             ! i
-              enddo             ! j
-              enddo             ! k
-              if (avail_hist_fields(nn)%avg_ice_present) then
-                 do k = 1, ncat_hist
-                 do j = jlo, jhi
-                 do i = ilo, ihi
-                    if (tmask(i,j,iblk)) then
-                          a3Dc(i,j,k,n,iblk) = &
-                          a3Dc(i,j,k,n,iblk)*avgct(ns)*ravgipn(i,j,k)
-                    endif
-                 enddo             ! i
-                 enddo             ! j
-                 enddo             ! k
-              endif
 
               endif
 
@@ -3882,6 +3890,7 @@
               enddo             ! k
               endif
            enddo                ! n
+
            do n = 1, num_avail_hist_fields_3Db
               nn = n3Dzcum + n
               if (avail_hist_fields(nn)%vhistfreq == histfreq(ns)) then
@@ -4195,6 +4204,13 @@
         enddo
 
       endif  ! write_history or write_ic
+
+      ! Turn off one-time grid output file
+      if (histfreq(ns) == 'g') then
+         histfreq(ns) = 'x'
+         nstreams = nstreams - 1
+      endif
+
       enddo  ! nstreams
 
       !$OMP PARALLEL DO PRIVATE(iblk,i,j,ilo,ihi,jlo,jhi,this_block)

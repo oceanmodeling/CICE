@@ -272,75 +272,95 @@
       if (local_debug .and. my_task == master_task) write(nu_diag,*) subname,'fdbg start'
 
       allocate ( &
-                 cldf(nx_block,ny_block, max_blocks), & ! cloud fraction
-            fsw_data(nx_block,ny_block,2,max_blocks), & ! field values at 2 temporal data points
-           cldf_data(nx_block,ny_block,2,max_blocks), &
-          fsnow_data(nx_block,ny_block,2,max_blocks), &
-           Tair_data(nx_block,ny_block,2,max_blocks), &
-           uatm_data(nx_block,ny_block,2,max_blocks), &
-           vatm_data(nx_block,ny_block,2,max_blocks), &
-           wind_data(nx_block,ny_block,2,max_blocks), &
-          strax_data(nx_block,ny_block,2,max_blocks), &
-          stray_data(nx_block,ny_block,2,max_blocks), &
-             Qa_data(nx_block,ny_block,2,max_blocks), &
-           rhoa_data(nx_block,ny_block,2,max_blocks), &
-            flw_data(nx_block,ny_block,2,max_blocks), &
-            sst_data(nx_block,ny_block,2,max_blocks), &
-            sss_data(nx_block,ny_block,2,max_blocks), &
-           uocn_data(nx_block,ny_block,2,max_blocks), &
-           vocn_data(nx_block,ny_block,2,max_blocks), &
-         sublim_data(nx_block,ny_block,2,max_blocks), &
-          frain_data(nx_block,ny_block,2,max_blocks), &
-        topmelt_data(nx_block,ny_block,2,max_blocks,ncat), &
-        botmelt_data(nx_block,ny_block,2,max_blocks,ncat), &
-           ocn_frc_m(nx_block,ny_block,  max_blocks,nfld,12), & ! ocn data for 12 months
-        topmelt_file(ncat), &
-        botmelt_file(ncat), &
-        wave_spectrum_data(nx_block,ny_block,nfreq,2,max_blocks), &
-        stat=ierr)
-        
-        if (ierr/=0) call abort_ice('(alloc_forcing): Out of Memory')
-        
-        if (sea_ice_time_bry) then !Allocate boundary arrays
-           allocate ( &
-                aicen_bry(nx_block,ny_block,ncat,max_blocks), &      
-                vicen_bry(nx_block,ny_block,ncat,max_blocks), &     
-                vsnon_bry(nx_block,ny_block,ncat,max_blocks), &     
-                Tsfc_bry(nx_block,ny_block,ncat,max_blocks),  &     
-                alvln_bry(nx_block,ny_block,ncat,max_blocks), &     
-                vlvln_bry(nx_block,ny_block,ncat,max_blocks), &     
-                apondn_bry(nx_block,ny_block,ncat,max_blocks),&     
-                hpondn_bry(nx_block,ny_block,ncat,max_blocks),&     
-                ipondn_bry(nx_block,ny_block,ncat,max_blocks),&
-                iage_bry(nx_block,ny_block,ncat,max_blocks),&
-                uvel_bry(nx_block,ny_block,max_blocks),&     
-                vvel_bry(nx_block,ny_block,max_blocks),&   
-                Sinz_bry(nx_block,ny_block,nilyr,ncat,max_blocks),  &
-                Tinz_bry(nx_block,ny_block,nilyr,ncat,max_blocks),  &  
-                Tsnz_bry(nx_block,ny_block,nslyr,ncat,max_blocks),  &
-                aicen_work_bry(nx_block,ny_block,ncat,2,max_blocks),&
-                vicen_work_bry(nx_block,ny_block,ncat,2,max_blocks),&
-                vsnon_work_bry(nx_block,ny_block,ncat,2,max_blocks),&
-                Tsfc_work_bry(nx_block,ny_block,ncat,2,max_blocks), &
-                alvln_work_bry(nx_block,ny_block,ncat,2,max_blocks),  &     
-                vlvln_work_bry(nx_block,ny_block,ncat,2,max_blocks),  &   
-                apondn_work_bry(nx_block,ny_block,ncat,2,max_blocks), &     
-                hpondn_work_bry(nx_block,ny_block,ncat,2,max_blocks), &    
-                ipondn_work_bry(nx_block,ny_block,ncat,2,max_blocks), &     
-                iage_work_bry(nx_block,ny_block,ncat,2,max_blocks),&
-                uvel_work_bry(nx_block,ny_block,2,max_blocks),&
-                vvel_work_bry(nx_block,ny_block,2,max_blocks),&
-                Tinz_work_bry(nx_block,ny_block,nilyr,ncat,2,max_blocks),&
-                Sinz_work_bry(nx_block,ny_block,nilyr,ncat,2,max_blocks),&
-                Tsnz_work_bry(nx_block,ny_block,nslyr,ncat,2,max_blocks),&
-           stat=ierr)
-      endif
-
+         cldf        (nx_block,ny_block,  max_blocks), & ! cloud fraction
+         fsw_data    (nx_block,ny_block,2,max_blocks), & ! field values at 2 temporal data points
+         cldf_data   (nx_block,ny_block,2,max_blocks), &
+         fsnow_data  (nx_block,ny_block,2,max_blocks), &
+         Tair_data   (nx_block,ny_block,2,max_blocks), &
+         uatm_data   (nx_block,ny_block,2,max_blocks), &
+         vatm_data   (nx_block,ny_block,2,max_blocks), &
+         wind_data   (nx_block,ny_block,2,max_blocks), &
+         strax_data  (nx_block,ny_block,2,max_blocks), &
+         stray_data  (nx_block,ny_block,2,max_blocks), &
+         Qa_data     (nx_block,ny_block,2,max_blocks), &
+         rhoa_data   (nx_block,ny_block,2,max_blocks), &
+         flw_data    (nx_block,ny_block,2,max_blocks), &
+         sst_data    (nx_block,ny_block,2,max_blocks), &
+         sss_data    (nx_block,ny_block,2,max_blocks), &
+         uocn_data   (nx_block,ny_block,2,max_blocks), &
+         vocn_data   (nx_block,ny_block,2,max_blocks), &
+         sublim_data (nx_block,ny_block,2,max_blocks), &
+         frain_data  (nx_block,ny_block,2,max_blocks), &
+         topmelt_data(nx_block,ny_block,2,max_blocks,ncat), &
+         botmelt_data(nx_block,ny_block,2,max_blocks,ncat), &
+         ocn_frc_m   (nx_block,ny_block,  max_blocks,nfld,12), & ! ocn data for 12 months
+         topmelt_file(ncat), &
+         botmelt_file(ncat), &
+         wave_spectrum_data(nx_block,ny_block,nfreq,2,max_blocks), &
+         stat=ierr)
       if (ierr/=0) call abort_ice('(alloc_forcing): Out of Memory')
 
-! initialize this, not set in box2001 (and some other forcings?)
+      if (sea_ice_time_bry) then !Allocate boundary arrays
+        allocate ( &
+           aicen_bry(nx_block,ny_block,ncat,max_blocks), &
+           vicen_bry(nx_block,ny_block,ncat,max_blocks), &
+           vsnon_bry(nx_block,ny_block,ncat,max_blocks), &
+           Tsfc_bry(nx_block,ny_block,ncat,max_blocks),  &
+           alvln_bry(nx_block,ny_block,ncat,max_blocks), &
+           vlvln_bry(nx_block,ny_block,ncat,max_blocks), &
+           apondn_bry(nx_block,ny_block,ncat,max_blocks),&
+           hpondn_bry(nx_block,ny_block,ncat,max_blocks),&
+           ipondn_bry(nx_block,ny_block,ncat,max_blocks),&
+           iage_bry(nx_block,ny_block,ncat,max_blocks),&
+           uvel_bry(nx_block,ny_block,max_blocks),&
+           vvel_bry(nx_block,ny_block,max_blocks),&
+           Sinz_bry(nx_block,ny_block,nilyr,ncat,max_blocks),  &
+           Tinz_bry(nx_block,ny_block,nilyr,ncat,max_blocks),  &
+           Tsnz_bry(nx_block,ny_block,nslyr,ncat,max_blocks),  &
+           aicen_work_bry(nx_block,ny_block,ncat,2,max_blocks),&
+           vicen_work_bry(nx_block,ny_block,ncat,2,max_blocks),&
+           vsnon_work_bry(nx_block,ny_block,ncat,2,max_blocks),&
+           Tsfc_work_bry(nx_block,ny_block,ncat,2,max_blocks), &
+           alvln_work_bry(nx_block,ny_block,ncat,2,max_blocks),  &
+           vlvln_work_bry(nx_block,ny_block,ncat,2,max_blocks),  &
+           apondn_work_bry(nx_block,ny_block,ncat,2,max_blocks), &
+           hpondn_work_bry(nx_block,ny_block,ncat,2,max_blocks), &
+           ipondn_work_bry(nx_block,ny_block,ncat,2,max_blocks), &
+           iage_work_bry(nx_block,ny_block,ncat,2,max_blocks),&
+           uvel_work_bry(nx_block,ny_block,2,max_blocks),&
+           vvel_work_bry(nx_block,ny_block,2,max_blocks),&
+           Tinz_work_bry(nx_block,ny_block,nilyr,ncat,2,max_blocks),&
+           Sinz_work_bry(nx_block,ny_block,nilyr,ncat,2,max_blocks),&
+           Tsnz_work_bry(nx_block,ny_block,nslyr,ncat,2,max_blocks),&
+        stat=ierr)
+        if (ierr/=0) call abort_ice('(alloc_forcing): Out of Memory - BC')
+      endif
 
-      cldf = c0
+      cldf         = c0
+      fsw_data     = c0
+      cldf_data    = c0
+      fsnow_data   = c0
+      Tair_data    = c0
+      uatm_data    = c0
+      vatm_data    = c0
+      wind_data    = c0
+      strax_data   = c0
+      stray_data   = c0
+      Qa_data      = c0
+      rhoa_data    = c0
+      flw_data     = c0
+      sst_data     = c0
+      sss_data     = c0
+      uocn_data    = c0
+      vocn_data    = c0
+      sublim_data  = c0
+      frain_data   = c0
+      topmelt_data = c0
+      botmelt_data = c0
+      ocn_frc_m    = c0
+      topmelt_file = ''
+      botmelt_file = ''
+      wave_spectrum_data = c0
 
       end subroutine alloc_forcing
 
@@ -812,13 +832,13 @@
 
       call ice_timer_start(timer_bound)
       call ice_HaloUpdate (swvdr,             halo_info, &
-                           field_loc_center,  field_type_scalar)
+                           field_loc_center,  field_type_scalar, fillvalue=c0)
       call ice_HaloUpdate (swvdf,             halo_info, &
-                           field_loc_center,  field_type_scalar)
+                           field_loc_center,  field_type_scalar, fillvalue=c0)
       call ice_HaloUpdate (swidr,             halo_info, &
-                           field_loc_center,  field_type_scalar)
+                           field_loc_center,  field_type_scalar, fillvalue=c0)
       call ice_HaloUpdate (swidf,             halo_info, &
-                           field_loc_center,  field_type_scalar)
+                           field_loc_center,  field_type_scalar, fillvalue=c0)
       call ice_timer_stop(timer_bound)
 
       call ice_timer_stop(timer_forcing)
@@ -5303,7 +5323,6 @@
       use ice_domain, only: nblocks, blocks_ice
       use ice_blocks, only: block, get_block, nx_block, ny_block, nghost
       use ice_flux, only: uocn, vocn
-      use ice_grid, only: uvm
 
       ! local parameters
 
@@ -5335,9 +5354,6 @@
                             / real(ny_global,kind=dbl_kind) - p1
          vocn(i,j,iblk) = -p2*real(iglob(i), kind=dbl_kind) &
                             / real(nx_global,kind=dbl_kind) + p1
-
-         uocn(i,j,iblk) = uocn(i,j,iblk) * uvm(i,j,iblk)
-         vocn(i,j,iblk) = vocn(i,j,iblk) * uvm(i,j,iblk)
 
          enddo
          enddo
