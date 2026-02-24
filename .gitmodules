@@ -1,4 +1,4 @@
 [submodule "icepack"]
 	path = icepack
-	url = https://github.com/oceanmodeling/icepack
-	branch = feature/coastal_app
+	url = https://github.com/SmithJos13/icepack
+	branch = feature/working_branch
