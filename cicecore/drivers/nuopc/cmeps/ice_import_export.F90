@@ -594,30 +594,18 @@ contains
           do i = 1,nx_block
              sst  (i,j,iblk)         = aflds(i,j, 1,iblk)
              sss  (i,j,iblk)         = aflds(i,j, 2,iblk)
-             zlvl (i,j,iblk)         = aflds(i,j, 3,iblk)
+             zlvl (i,j,iblk) = aflds(i,j, 3,iblk)
              ! see below for 4,5,6
              Tair (i,j,iblk)         = aflds(i,j, 7,iblk)
              Qa   (i,j,iblk)         = aflds(i,j, 8,iblk)
              frzmlt (i,j,iblk)       = aflds(i,j, 9,iblk)
-             if (coastal_coupled) then 
-                swvdr(i,j,iblk)         = real(0.28)*aflds(i,j,10,iblk)
-                swidr(i,j,iblk)         = real(0.24)*aflds(i,j,10,iblk)
-                swvdf(i,j,iblk)         = real(0.31)*aflds(i,j,10,iblk)
-                swidf(i,j,iblk)         = real(0.17)*aflds(i,j,10,iblk)
-             else
-                swvdr(i,j,iblk)         = aflds(i,j,10,iblk)
-                swidr(i,j,iblk)         = aflds(i,j,11,iblk)
-                swvdf(i,j,iblk)         = aflds(i,j,12,iblk)
-                swidf(i,j,iblk)         = aflds(i,j,13,iblk)
-             end if
+             swvdr(i,j,iblk)         = aflds(i,j,10,iblk)
+             swidr(i,j,iblk)         = aflds(i,j,11,iblk)
+             swvdf(i,j,iblk)         = aflds(i,j,12,iblk)
+             swidf(i,j,iblk)         = aflds(i,j,13,iblk)
              flw  (i,j,iblk)         = aflds(i,j,14,iblk)
-             if (coastal_coupled) then
-                frain(i,j,iblk)         = abs(max(aflds(i,j,15,iblk),c0))
-                fsnow(i,j,iblk)         = abs(min(aflds(i,j,15,iblk),c0))
-             else
-                frain(i,j,iblk)         = aflds(i,j,15,iblk)
-                fsnow(i,j,iblk)         = aflds(i,j,16,iblk)
-             end if
+             frain(i,j,iblk)         = aflds(i,j,15,iblk)
+             fsnow(i,j,iblk)         = aflds(i,j,16,iblk)
           end do
        end do
     end do
@@ -889,18 +877,17 @@ contains
                 ! For now assume water is well mixed to 50m
                 ! There is a hook above that can be used to passed mld to 
                 ! model.
-                
+                fsnow(i,j,iblk)         = abs(min(frain(i,j,iblk),c0))
+                frain(i,j,iblk)         = abs(max(frain(i,j,iblk),c0))
                 ! Freezing and melting potential
                 if (oceanmixed_ice) then
-                  hmix (i,j,iblk)  = max(min(hmix(i,j,iblk),real(50.0)),real(5.0))
                 else !coupled configuration without ocean model active
-                   hmix (i,j,iblk)  = max(min(bathymetry(i,j,iblk),real(50.0)),real(5.0))
-                   frzmlt(i,j,iblk) = (-real(0.0543)*sss(i,j,iblk)-sst(i,j,iblk))*cprho*hmix(i,j,iblk)/dt
+                   frzmlt(i,j,iblk) = (icepack_sea_freezing_temperature(sss(i,j,iblk))-sst(i,j,iblk))*cprho*hmix(i,j,iblk)/dt
                    frzmlt(i,j,iblk) = min(max(frzmlt(i,j,iblk),real(-1000.0)),real(1000.0))
                    ! After calcuting potential the sst is reset to freezing point.
-
-                   if (sst(i,j,iblk) < -real(0.0543)*sss(i,j,iblk)) then
-                       sst(i,j,iblk)    = -real(0.0543)*sss(i,j,iblk)
+                   
+                   if (sst(i,j,iblk) < icepack_sea_freezing_temperature(sss(i,j,iblk))) then
+                        sst(i,j,iblk) = icepack_sea_freezing_temperature(sss(i,j,iblk))
                    endif
                 endif
              endif
