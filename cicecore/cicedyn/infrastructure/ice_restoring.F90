@@ -237,7 +237,7 @@
                vicen_rest(i,j,n,iblk) = vicen(i,jlo,n,iblk)
                vsnon_rest(i,j,n,iblk) = vsnon(i,jlo,n,iblk)
                do nt = 1, ntrcr
-                  trcrn_rest(i,j,nt,n,iblk) = trcrn(ilo,j,nt,n,iblk)
+                  trcrn_rest(i,j,nt,n,iblk) = trcrn(i,jlo,nt,n,iblk)
                enddo
             enddo
             enddo
@@ -268,7 +268,7 @@
                vicen_rest(i,j,n,iblk) = vicen(i,jhi,n,iblk)
                vsnon_rest(i,j,n,iblk) = vsnon(i,jhi,n,iblk)
                do nt = 1, ntrcr
-                  trcrn_rest(i,j,nt,n,iblk) = trcrn(ihi,j,nt,n,iblk)
+                  trcrn_rest(i,j,nt,n,iblk) = trcrn(i,jhi,nt,n,iblk)
                enddo
             enddo
             enddo
