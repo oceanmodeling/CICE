@@ -602,8 +602,6 @@
       use ice_flux, only: Tmltz,Tf
      
       use icepack_mushy_physics, only: icepack_enthalpy_snow, icepack_enthalpy_mush
-      use ice_dyn_shared, only: a_min
-      
       
       use ice_flux, only: fpond, fresh, fhocn, fsalt,Tf
       use ice_flux_bgc, only: flux_bio, faero_ocn,fiso_ocn
